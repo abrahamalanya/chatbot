@@ -21,3 +21,22 @@ En este enlace podras ver tus pruebas una vez levantado ngrok
 ```cmd
 Web Interface           http://127.0.0.1:4040
 ```
+
+## Usar ngrok con Herd
+Usa ngrok con host-header
+
+```cmd
+ngrok http http://chatbot.test
+```
+
+o
+
+```cmd
+ngrok http --host-header=chatbot.test http://127.0.0.1:80
+```
+
+**estable**
+
+```cmd
+ngrok http 80 --host-header=chatbot.test
+```
