@@ -4,6 +4,7 @@ use App\Http\Controllers\AdvisorController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,12 +20,13 @@ Route::get('/', function () {
 // Rutas autenticadas
 Route::middleware(['auth'])->group(function () {
 
-    // Admin: dashboard y gestión de asesores
-    Route::middleware(['role:admin'])->group(function () {
+    // Admin + Sistema: dashboard, asesores, mensajes, usuarios
+    Route::middleware(['role:sistema|admin'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/assignments/{assignment}/assign', [DashboardController::class, 'assign'])->name('assignments.assign');
         Route::get('/mensajes', [DashboardController::class, 'messages'])->name('admin.messages');
         Route::resource('/advisors', AdvisorController::class)->except(['show']);
+        Route::resource('/users', UserController::class)->except(['show']);
     });
 
     // Asesor: chat con clientes
