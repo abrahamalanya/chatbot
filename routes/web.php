@@ -22,6 +22,8 @@ Route::middleware(['auth'])->group(function () {
     // Admin: dashboard y gestión de asesores
     Route::middleware(['role:admin'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::post('/assignments/{assignment}/assign', [DashboardController::class, 'assign'])->name('assignments.assign');
+        Route::get('/mensajes', [DashboardController::class, 'messages'])->name('admin.messages');
         Route::resource('/advisors', AdvisorController::class)->except(['show']);
     });
 
@@ -30,6 +32,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/chat', [ChatController::class, 'index'])->name('chat.index');
         Route::get('/chat/messages', [ChatController::class, 'messages'])->name('chat.messages');
         Route::post('/chat/send', [ChatController::class, 'send'])->name('chat.send');
+        Route::post('/chat/accept', [ChatController::class, 'accept'])->name('chat.accept');
+        Route::post('/chat/close', [ChatController::class, 'close'])->name('chat.close');
     });
 
     // Perfil (ambos roles)

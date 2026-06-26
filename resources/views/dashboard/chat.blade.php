@@ -1,26 +1,50 @@
 <x-app-layout>
     <x-slot name="title">Mis Clientes</x-slot>
 
-    <div class="flex gap-4 h-[calc(100vh-10rem)]">
+    <div class="flex gap-4 h-[calc(100vh-10rem)]" x-data="{ modalCierre: false }">
 
         {{-- Lista de clientes --}}
         <div class="w-72 shrink-0 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
             <div class="px-4 py-3 border-b border-gray-100">
-                <p class="text-sm font-semibold text-gray-700">Clientes asignados</p>
-                <p class="text-xs text-gray-400 mt-0.5">{{ $clientes->count() }} conversaciones</p>
+                <p class="text-sm font-semibold text-gray-700">Mis clientes</p>
+                <p class="text-xs text-gray-400 mt-0.5">{{ $clientes->count() }} contactos</p>
             </div>
             <div class="flex-1 overflow-y-auto divide-y divide-gray-100">
                 @forelse($clientes as $cliente)
+                @php $latest = $cliente->latest; @endphp
                 <a href="{{ route('chat.index', ['cliente' => $cliente->cliente_telefono]) }}"
                    class="flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition
                           {{ $clienteSeleccionado === $cliente->cliente_telefono ? 'bg-blue-50 border-l-2 border-blue-600' : '' }}">
-                    <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm shrink-0">
-                        {{ strtoupper(substr($cliente->cliente_telefono, -2)) }}
+                    <div class="relative shrink-0">
+                        <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
+                            {{ strtoupper(substr($cliente->cliente_telefono, -2)) }}
+                        </div>
+                        {{-- Indicador de estado --}}
+                        @if($latest?->status === 'assigned' && !$latest?->accepted_at)
+                            <span class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-orange-400 border-2 border-white rounded-full" title="Pendiente de aceptar"></span>
+                        @elseif($latest?->isConversationActive())
+                            <span class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full" title="Activo"></span>
+                        @endif
                     </div>
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                         <p class="text-sm font-medium text-gray-800 truncate">+{{ $cliente->cliente_telefono }}</p>
-                        <p class="text-xs text-gray-400">WhatsApp</p>
+                        <p class="text-xs text-gray-400">
+                            @if($latest?->status === 'assigned' && !$latest?->accepted_at)
+                                <span class="text-orange-500 font-medium">Pendiente aceptar</span>
+                            @elseif($latest?->isConversationActive())
+                                <span class="text-green-600 font-medium">En sesión</span>
+                            @elseif($cliente->total_sesiones > 1)
+                                {{ $cliente->total_sesiones }} sesiones
+                            @else
+                                WhatsApp
+                            @endif
+                        </p>
                     </div>
+                    @if($cliente->total_sesiones > 1)
+                    <span class="shrink-0 w-4 h-4 rounded-full bg-blue-200 text-blue-700 text-[10px] font-bold flex items-center justify-center">
+                        {{ $cliente->total_sesiones }}
+                    </span>
+                    @endif
                 </a>
                 @empty
                 <div class="px-4 py-8 text-center text-gray-400 text-sm">
@@ -31,34 +55,75 @@
         </div>
 
         {{-- Panel de chat --}}
-        <div class="flex-1 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
+        <div class="flex-1 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col min-w-0">
 
             @if($clienteSeleccionado)
 
-            {{-- Header del chat --}}
-            <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-100">
-                <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
+            {{-- Header --}}
+            <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-100 shrink-0">
+                <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm shrink-0">
                     {{ strtoupper(substr($clienteSeleccionado, -2)) }}
                 </div>
-                <div>
+                <div class="flex-1 min-w-0">
                     <p class="text-sm font-semibold text-gray-800">+{{ $clienteSeleccionado }}</p>
-                    <p class="text-xs text-green-500">Activo</p>
+                    @if($assignment?->status === 'assigned' && !$assignment?->accepted_at)
+                        <p class="text-xs text-orange-500">Asignado — pendiente de aceptar</p>
+                    @elseif($assignment?->isConversationActive())
+                        <p class="text-xs text-green-500" id="chat-status">
+                            Sesión activa · expira a las {{ $assignment->conversation_expires_at->format('H:i') }}
+                        </p>
+                    @elseif($assignment?->status === 'assigned')
+                        <p class="text-xs text-orange-500" id="chat-status">Sesión expirada</p>
+                    @elseif($assignment?->status === 'closed')
+                        <p class="text-xs text-gray-400">
+                            Cerrado · {{ \App\Models\Assignment::DISPOSITIONS[$assignment->disposition] ?? '—' }}
+                        </p>
+                    @else
+                        <p class="text-xs text-gray-400">Historial</p>
+                    @endif
                 </div>
+
+                {{-- Countdown --}}
+                @if($assignment?->isConversationActive())
+                <div id="countdown-badge"
+                     class="shrink-0 px-2.5 py-1 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-mono tabular-nums"
+                     data-expires="{{ $assignment->conversation_expires_at->toIso8601String() }}">—</div>
+                @endif
+
+                {{-- Botón cerrar (solo si hay sesión activa) --}}
+                @if($assignment?->status === 'assigned' && $assignment?->accepted_at)
+                <button @click="modalCierre = true"
+                        class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 text-red-600 text-xs font-medium rounded-lg hover:bg-red-100 transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    Cerrar
+                </button>
+                @endif
             </div>
 
             {{-- Mensajes --}}
-            <div id="chat-box" class="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            <div id="chat-box" class="flex-1 overflow-y-auto px-5 py-4 space-y-2">
                 @foreach($mensajes as $msg)
-                    @if($msg->sender === 'asesor')
+                    @if($msg->tipo === 'opcion')
+                    <div class="flex justify-center">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 text-blue-700 text-xs rounded-full">
+                            <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                            </svg>
+                            {{ $msg->mensaje }}
+                        </span>
+                    </div>
+                    @elseif($msg->sender === 'asesor')
                     <div class="flex justify-end">
-                        <div class="max-w-xs bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
+                        <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
                             {{ $msg->mensaje }}
                             <p class="text-xs text-blue-300 mt-1 text-right">{{ $msg->created_at->format('H:i') }}</p>
                         </div>
                     </div>
                     @else
                     <div class="flex justify-start">
-                        <div class="max-w-xs bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
+                        <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
                             {{ $msg->mensaje }}
                             <p class="text-xs text-gray-400 mt-1">{{ $msg->created_at->format('H:i') }}</p>
                         </div>
@@ -67,12 +132,35 @@
                 @endforeach
             </div>
 
-            {{-- Input de mensaje --}}
-            <div class="border-t border-gray-100 px-4 py-3">
+            {{-- Zona inferior: según estado --}}
+            @if($assignment?->status === 'assigned' && !$assignment?->accepted_at)
+            {{-- ESTADO: pendiente de aceptar --}}
+            <div class="border-t border-gray-100 px-5 py-4 shrink-0 bg-orange-50">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Nuevo cliente asignado</p>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            Tienes <strong>{{ $assignment->conversation_duration }} minutos</strong> de sesión al aceptar.
+                        </p>
+                    </div>
+                    <form method="POST" action="{{ route('chat.accept') }}">
+                        @csrf
+                        <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
+                        <button type="submit"
+                                class="px-5 py-2 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition whitespace-nowrap">
+                            ✓ Aceptar cliente
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            @elseif($assignment?->isConversationActive())
+            {{-- ESTADO: sesión activa — puede escribir --}}
+            <div class="border-t border-gray-100 px-4 py-3 shrink-0" id="input-area">
                 <form method="POST" action="{{ route('chat.send') }}" class="flex items-center gap-2">
                     @csrf
                     <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
-                    <input type="text" name="mensaje" placeholder="Escribe un mensaje..."
+                    <input type="text" name="mensaje" id="msg-input" placeholder="Escribe un mensaje..."
                            autocomplete="off"
                            class="flex-1 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <button type="submit"
@@ -83,6 +171,18 @@
                     </button>
                 </form>
             </div>
+
+            @else
+            {{-- ESTADO: expirada o cerrada --}}
+            <div class="border-t border-gray-100 px-4 py-3 shrink-0 text-center text-xs text-gray-400">
+                @if($assignment?->disposition)
+                    Conversación cerrada ·
+                    <span class="font-medium">{{ \App\Models\Assignment::DISPOSITIONS[$assignment->disposition] }}</span>
+                @else
+                    Solo historial — sin conversación activa
+                @endif
+            </div>
+            @endif
 
             @else
             <div class="flex-1 flex items-center justify-center text-gray-400">
@@ -96,20 +196,146 @@
             @endif
         </div>
 
+        {{-- Modal de cierre --}}
+        <div x-show="modalCierre"
+             x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+             @click.self="modalCierre = false">
+            <div x-show="modalCierre"
+                 x-transition:enter="transition ease-out duration-150"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 class="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+                <h3 class="text-base font-semibold text-gray-800 mb-1">Cerrar conversación</h3>
+                <p class="text-sm text-gray-500 mb-5">Selecciona el resultado de esta atención.</p>
+                <form method="POST" action="{{ route('chat.close') }}">
+                    @csrf
+                    <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
+                    <div class="space-y-2 mb-5">
+                        @foreach(\App\Models\Assignment::DISPOSITIONS as $value => $label)
+                        @if($value !== 'tiempo_expirado')
+                        <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 transition">
+                            <input type="radio" name="disposition" value="{{ $value }}" class="accent-blue-600">
+                            <span class="text-sm text-gray-700">{{ $label }}</span>
+                        </label>
+                        @endif
+                        @endforeach
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
+                            Confirmar cierre
+                        </button>
+                        <button type="button" @click="modalCierre = false"
+                                class="flex-1 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
 
-    {{-- Auto-scroll y polling --}}
+    {{-- Toast de advertencia 1 minuto --}}
+    <div id="warning-toast"
+         style="display:none"
+         class="fixed bottom-6 right-6 z-50 flex items-start gap-3 bg-orange-600 text-white px-4 py-3 rounded-xl shadow-lg max-w-xs">
+        <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+        <div>
+            <p class="text-sm font-semibold">¡Queda 1 minuto!</p>
+            <p class="text-xs text-orange-200 mt-0.5">Termina de gestionar al cliente antes de que expire la sesión.</p>
+        </div>
+        <button onclick="document.getElementById('warning-toast').style.display='none'"
+                class="ml-2 text-orange-200 hover:text-white text-lg leading-none shrink-0">×</button>
+    </div>
+
     <script>
         const clienteTelefono = @json($clienteSeleccionado);
 
+        // ── Countdown ─────────────────────────────────────────────────────────
+        const badge = document.getElementById('countdown-badge');
+        if (badge) {
+            const expires = new Date(badge.dataset.expires);
+            let warned = false;
+
+            function updateCountdown() {
+                const diff = Math.floor((expires - Date.now()) / 1000);
+
+                // Aviso 1 minuto antes
+                if (diff <= 60 && !warned) {
+                    warned = true;
+                    document.getElementById('warning-toast').style.display = 'flex';
+                    setTimeout(() => document.getElementById('warning-toast').style.display = 'none', 12000);
+                }
+
+                if (diff <= 0) {
+                    badge.textContent = 'Expirado';
+                    badge.className = 'shrink-0 px-2.5 py-1 bg-orange-50 border border-orange-300 rounded-lg text-xs text-orange-600 font-mono';
+                    const status = document.getElementById('chat-status');
+                    if (status) {
+                        status.textContent = 'Sesión expirada';
+                        status.className = 'text-xs text-orange-500';
+                    }
+                    // Deshabilitar input
+                    const inputArea = document.getElementById('input-area');
+                    if (inputArea) {
+                        inputArea.innerHTML = `<p class="text-center text-xs text-orange-500 py-3">
+                            Sesión expirada — no puedes enviar más mensajes
+                        </p>`;
+                    }
+                    return;
+                }
+
+                const m = String(Math.floor(diff / 60)).padStart(2, '0');
+                const s = String(diff % 60).padStart(2, '0');
+                badge.textContent = m + ':' + s;
+            }
+
+            updateCountdown();
+            setInterval(updateCountdown, 1000);
+        }
+
+        // ── Scroll y polling de mensajes ──────────────────────────────────────
         function scrollBottom() {
             const box = document.getElementById('chat-box');
             if (box) box.scrollTop = box.scrollHeight;
         }
 
+        function renderMsg(msg) {
+            const hora = new Date(msg.created_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+            if (msg.tipo === 'opcion') {
+                return `<div class="flex justify-center">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 text-blue-700 text-xs rounded-full">
+                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                        </svg>
+                        ${msg.mensaje}
+                    </span>
+                </div>`;
+            }
+            if (msg.sender === 'asesor') {
+                return `<div class="flex justify-end">
+                    <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
+                        ${msg.mensaje}
+                        <p class="text-xs text-blue-300 mt-1 text-right">${hora}</p>
+                    </div>
+                </div>`;
+            }
+            return `<div class="flex justify-start">
+                <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
+                    ${msg.mensaje}
+                    <p class="text-xs text-gray-400 mt-1">${hora}</p>
+                </div>
+            </div>`;
+        }
+
         function cargarMensajes() {
             if (!clienteTelefono) return;
-
             fetch(`/chat/messages?cliente_telefono=${clienteTelefono}`, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
@@ -117,22 +343,7 @@
             .then(data => {
                 const box = document.getElementById('chat-box');
                 if (!box) return;
-                box.innerHTML = data.map(msg => {
-                    const hora = new Date(msg.created_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-                    return msg.sender === 'asesor'
-                        ? `<div class="flex justify-end">
-                             <div class="max-w-xs bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
-                               ${msg.mensaje}
-                               <p class="text-xs text-blue-300 mt-1 text-right">${hora}</p>
-                             </div>
-                           </div>`
-                        : `<div class="flex justify-start">
-                             <div class="max-w-xs bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
-                               ${msg.mensaje}
-                               <p class="text-xs text-gray-400 mt-1">${hora}</p>
-                             </div>
-                           </div>`;
-                }).join('');
+                box.innerHTML = data.map(renderMsg).join('');
                 scrollBottom();
             });
         }
