@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Advisor;
 use App\Models\Assignment;
 use App\Models\Message;
 use App\Services\WhatsappService;
@@ -19,28 +18,22 @@ class ChatController extends Controller
 
     public function index(Request $request)
     {
-        $asesorTelefono = $request->asesor;
-
-        // buscar asesor
-        $advisor = Advisor::where('telefono', $asesorTelefono)->first();
-
-        // obtener clientes asignados
+        $advisor = auth()->user()->advisor;
+        
         $clientes = Assignment::where('advisor_id', $advisor->id)->get();
 
-        // cliente seleccionado
         $clienteSeleccionado = $request->cliente;
 
         $mensajes = [];
-
         if ($clienteSeleccionado) {
             $mensajes = Message::where('cliente_telefono', $clienteSeleccionado)
                 ->orderBy('created_at')
                 ->get();
         }
 
-        return view('chat', compact(
+        return view('dashboard.chat', compact(
             'clientes',
-            'asesorTelefono',
+            'advisor',
             'clienteSeleccionado',
             'mensajes'
         ));
@@ -48,9 +41,7 @@ class ChatController extends Controller
 
     public function messages(Request $request)
     {
-        $telefono = $request->cliente_telefono;
-
-        $mensajes = Message::where('cliente_telefono', $telefono)
+        $mensajes = Message::where('cliente_telefono', $request->cliente_telefono)
             ->orderBy('created_at')
             ->get();
 
@@ -61,25 +52,20 @@ class ChatController extends Controller
     {
         $request->validate([
             'cliente_telefono' => 'required',
-            'mensaje' => 'required'
+            'mensaje'          => 'required',
         ]);
 
-        $telefono = $request->cliente_telefono;
+        $advisor = auth()->user()->advisor;
 
-        // buscar asignación
-        $assignment = Assignment::where('cliente_telefono', $telefono)->first();
-
-        // guardar mensaje
         Message::create([
-            'cliente_telefono' => $telefono,
-            'advisor_id' => $assignment->advisor_id,
-            'mensaje' => $request->mensaje,
-            'sender' => 'asesor'
+            'cliente_telefono' => $request->cliente_telefono,
+            'advisor_id'       => $advisor->id,
+            'mensaje'          => $request->mensaje,
+            'sender'           => 'asesor',
         ]);
 
-        // enviar mensaje al cliente
-        $this->whatsapp->send($telefono, $request->mensaje);
+        $this->whatsapp->send($request->cliente_telefono, $request->mensaje);
 
-        return back()->with('success', true);
+        return back()->with('success', 'Mensaje enviado.');
     }
 }
