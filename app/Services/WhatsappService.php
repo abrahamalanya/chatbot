@@ -42,7 +42,7 @@ class WhatsappService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         $components = [];
         if (!empty($bodyParams)) {

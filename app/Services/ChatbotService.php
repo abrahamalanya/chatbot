@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\Http;
 
 class ChatbotService
 {
-    protected $assignment;
-    protected $whatsapp;
+    protected AssignmentService $assignment;
+    protected WhatsappService $whatsapp;
 
     // Etiquetas legibles de cada botón para el historial del asesor
     private const OPCIONES_LABELS = [
@@ -153,7 +153,7 @@ class ChatbotService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         Http::withToken($token)->post($url, [
             'messaging_product' => 'whatsapp',
@@ -177,7 +177,7 @@ class ChatbotService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         Http::withToken($token)->post($url, [
             'messaging_product' => 'whatsapp',
@@ -191,7 +191,7 @@ class ChatbotService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         Http::withToken($token)->post($url, [
             'messaging_product' => 'whatsapp',
@@ -215,7 +215,7 @@ class ChatbotService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         Http::withToken($token)->post($url, [
             'messaging_product' => 'whatsapp',
@@ -238,7 +238,7 @@ class ChatbotService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         Http::withToken($token)->post($url, [
             'messaging_product' => 'whatsapp',
@@ -262,7 +262,7 @@ class ChatbotService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         Http::withToken($token)->post($url, [
             'messaging_product' => 'whatsapp',
@@ -285,7 +285,7 @@ class ChatbotService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         Http::withToken($token)->post($url, [
             'messaging_product' => 'whatsapp',
@@ -309,7 +309,7 @@ class ChatbotService
     {
         $token           = config('services.whatsapp.token');
         $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v19.0/{$phone_number_id}/messages";
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
 
         Http::withToken($token)->post($url, [
             'messaging_product' => 'whatsapp',
