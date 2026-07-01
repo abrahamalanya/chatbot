@@ -17,6 +17,11 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Páginas públicas
+Route::get('/privacidad',    fn () => view('legal.privacidad'))->name('privacidad');
+Route::get('/terminos',      fn () => view('legal.terminos'))->name('terminos');
+Route::get('/eliminardatos', fn () => view('legal.eliminar-datos'))->name('eliminar-datos');
+
 // Rutas autenticadas
 Route::middleware(['auth'])->group(function () {
 
