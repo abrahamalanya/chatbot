@@ -7,7 +7,7 @@ use App\Models\Assignment;
 
 class AssignmentService
 {
-    protected $whatsapp;
+    protected WhatsappService $whatsapp;
 
     public function __construct(WhatsappService $whatsapp)
     {
@@ -57,9 +57,9 @@ class AssignmentService
             "Tienes un nuevo cliente asignado: {$assignment->cliente_telefono}\nIngresa al panel para aceptar y comenzar la atención."
         );
 
-        $this->whatsapp->send(
+        $this->whatsapp->sendTemplate(
             $assignment->cliente_telefono,
-            "Hola, te hemos asignado un asesor de CREDIMAS. En breve se pondrá en contacto contigo. 👨‍💼"
+            config('services.whatsapp.templates.asesor_asignado')
         );
 
         return $assignment->fresh();
@@ -72,9 +72,9 @@ class AssignmentService
             'conversation_expires_at' => now()->addMinutes($assignment->conversation_duration),
         ]);
 
-        $this->whatsapp->send(
+        $this->whatsapp->sendTemplate(
             $assignment->cliente_telefono,
-            "Tu asesor ha aceptado la conversación. Ya puedes escribirle directamente. 😊"
+            config('services.whatsapp.templates.asesor_acepto')
         );
 
         return $assignment->fresh();
