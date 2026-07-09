@@ -67,6 +67,8 @@ class ChatController extends Controller
                     'disposition' => 'tiempo_expirado',
                 ]);
                 $assignment->refresh();
+
+                $this->despedirCliente($clienteSeleccionado, $advisor->id);
             }
         }
 
@@ -161,7 +163,24 @@ class ChatController extends Controller
                 'disposition' => $request->disposition,
             ]);
 
+        $this->despedirCliente($request->cliente_telefono, $advisor->id);
+
         return redirect()->route('chat.index')
             ->with('success', 'Conversación cerrada correctamente.');
+    }
+
+    private function despedirCliente(string $clienteTelefono, int $advisorId): void
+    {
+        $mensaje = config('messages.despedida');
+
+        Message::create([
+            'cliente_telefono' => $clienteTelefono,
+            'advisor_id'       => $advisorId,
+            'mensaje'          => $mensaje,
+            'sender'           => 'asesor',
+            'tipo'             => 'texto',
+        ]);
+
+        $this->whatsapp->send($clienteTelefono, $mensaje);
     }
 }

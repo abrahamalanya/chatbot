@@ -104,7 +104,7 @@ class ChatbotService
                 $this->sendMenu($from);
 
             } elseif ($reply === 'salir') {
-                $this->replyText($from, "Gracias por contactarnos. ¡Hasta luego! 👋");
+                $this->replyText($from, config('messages.despedida'));
             }
         }
     }
