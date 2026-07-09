@@ -2,6 +2,12 @@
 
 return [
     'bienvenida' => '🏆Hola 😀, somos CREDIMAS ORIENTE, 💸 ¿Dinero rápido y seguro? ¡Nosotros lo tenemos! 💰ofrecemos:',
+    'despedida' => 'La conversación ha finalizado.
+
+Somos *CREDIMAS ORIENTE* y agradecemos que se haya comunicado con nosotros. Ha sido un gusto atenderle.
+
+¡Hasta luego! Esperamos poder ayudarle nuevamente muy pronto. 👋
+',
     'creditos' => [
         'hipotecario' => [
             'requisitos' => '

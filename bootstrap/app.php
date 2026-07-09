@@ -22,5 +22,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (\Spatie\Permission\Exceptions\UnauthorizedException $e, $request) {
+            if ($request->user()?->hasRole('asesor')) {
+                return redirect()->route('chat.index');
+            }
+        });
     })->create();

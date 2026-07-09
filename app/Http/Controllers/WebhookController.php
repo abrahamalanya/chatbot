@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 class WebhookController extends Controller
 {
-    protected $chatbot;
+    protected ChatbotService $chatbot;
 
     public function __construct(ChatbotService $chatbot)
     {

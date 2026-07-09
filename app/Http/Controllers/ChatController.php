@@ -10,13 +10,13 @@ use Illuminate\Http\Request;
 
 class ChatController extends Controller
 {
-    protected $whatsapp;
-    protected $assignmentService;
+    protected WhatsappService $whatsapp;
+    protected AssignmentService $assignment;
 
-    public function __construct(WhatsappService $whatsapp, AssignmentService $assignmentService)
+    public function __construct(WhatsappService $whatsapp, AssignmentService $assignment)
     {
-        $this->whatsapp          = $whatsapp;
-        $this->assignmentService = $assignmentService;
+        $this->whatsapp   = $whatsapp;
+        $this->assignment = $assignment;
     }
 
     public function index(Request $request)
@@ -67,6 +67,8 @@ class ChatController extends Controller
                     'disposition' => 'tiempo_expirado',
                 ]);
                 $assignment->refresh();
+
+                $this->despedirCliente($clienteSeleccionado, $advisor->id);
             }
         }
 
@@ -101,7 +103,7 @@ class ChatController extends Controller
             return back()->with('error', 'No se encontró una asignación pendiente de aceptar.');
         }
 
-        $this->assignmentService->acceptAssignment($assignment);
+        $this->assignment->acceptAssignment($assignment);
 
         return redirect()->route('chat.index', ['cliente' => $request->cliente_telefono])
             ->with('success', "Conversación aceptada. Tienes {$assignment->conversation_duration} minutos.");
@@ -161,7 +163,24 @@ class ChatController extends Controller
                 'disposition' => $request->disposition,
             ]);
 
+        $this->despedirCliente($request->cliente_telefono, $advisor->id);
+
         return redirect()->route('chat.index')
             ->with('success', 'Conversación cerrada correctamente.');
+    }
+
+    private function despedirCliente(string $clienteTelefono, int $advisorId): void
+    {
+        $mensaje = config('messages.despedida');
+
+        Message::create([
+            'cliente_telefono' => $clienteTelefono,
+            'advisor_id'       => $advisorId,
+            'mensaje'          => $mensaje,
+            'sender'           => 'asesor',
+            'tipo'             => 'texto',
+        ]);
+
+        $this->whatsapp->send($clienteTelefono, $mensaje);
     }
 }
