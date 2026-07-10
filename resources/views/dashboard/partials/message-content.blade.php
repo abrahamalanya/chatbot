@@ -21,6 +21,21 @@
         <p>{{ $msg->mensaje }}</p>
     @endif
 
+@elseif($msg->tipo === 'video')
+    @if($msg->media_url)
+    <video src="{{ $msg->media_url }}" controls class="rounded-lg max-w-full max-h-60 mb-1"></video>
+    @endif
+    @if($msg->mensaje && $msg->mensaje !== '🎥 Video')
+        <p>{{ $msg->mensaje }}</p>
+    @endif
+
+@elseif($msg->tipo === 'audio')
+    @if($msg->media_url)
+    <audio src="{{ $msg->media_url }}" controls class="max-w-full mb-1" style="max-width: 240px;"></audio>
+    @else
+        <p>{{ $msg->mensaje }}</p>
+    @endif
+
 @elseif($msg->tipo === 'ubicacion')
     <a href="https://www.google.com/maps?q={{ $msg->latitude }},{{ $msg->longitude }}" target="_blank" rel="noopener"
        class="flex items-center gap-2 {{ $light ? 'text-white' : 'text-gray-800' }} underline decoration-dotted">

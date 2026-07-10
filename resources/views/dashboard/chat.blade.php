@@ -255,6 +255,7 @@
 
     <script>
         const clienteTelefono = @json($clienteSeleccionado);
+        let renderedIds = @json(collect($mensajes)->pluck('id'));
 
         // ── Countdown ─────────────────────────────────────────────────────────
         const badge = document.getElementById('countdown-badge');
@@ -305,6 +306,10 @@
             if (box) box.scrollTop = box.scrollHeight;
         }
 
+        function isNearBottom(box) {
+            return box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+        }
+
         function escapeHtml(str) {
             const div = document.createElement('div');
             div.textContent = str ?? '';
@@ -332,6 +337,19 @@
                     </svg>
                     <span class="truncate">${escapeHtml(msg.media_filename || 'Documento')}</span>
                 </a>`;
+            }
+
+            if (msg.tipo === 'video') {
+                const video = msg.media_url
+                    ? `<video src="${msg.media_url}" controls class="rounded-lg max-w-full max-h-60 mb-1"></video>`
+                    : '';
+                const caption = (msg.mensaje && msg.mensaje !== '🎥 Video') ? `<p>${escapeHtml(msg.mensaje)}</p>` : '';
+                return video + caption;
+            }
+
+            if (msg.tipo === 'audio') {
+                if (!msg.media_url) return `<p>${escapeHtml(msg.mensaje)}</p>`;
+                return `<audio src="${msg.media_url}" controls class="max-w-full mb-1" style="max-width: 240px;"></audio>`;
             }
 
             if (msg.tipo === 'ubicacion') {
@@ -385,8 +403,29 @@
             .then(data => {
                 const box = document.getElementById('chat-box');
                 if (!box) return;
-                box.innerHTML = data.map(renderMsg).join('');
-                scrollBottom();
+
+                const newIds = data.map(m => m.id);
+
+                // Sin cambios: no tocar el DOM para no interrumpir video/audio en reproducción
+                if (newIds.length === renderedIds.length && newIds.every((id, i) => id === renderedIds[i])) {
+                    return;
+                }
+
+                const wasNearBottom = renderedIds.length === 0 || isNearBottom(box);
+
+                // Si solo se agregaron mensajes nuevos al final, los anexamos sin re-renderizar lo existente
+                const isAppendOnly = newIds.length > renderedIds.length
+                    && renderedIds.every((id, i) => id === newIds[i]);
+
+                if (isAppendOnly) {
+                    box.insertAdjacentHTML('beforeend', data.slice(renderedIds.length).map(renderMsg).join(''));
+                } else {
+                    box.innerHTML = data.map(renderMsg).join('');
+                }
+
+                renderedIds = newIds;
+
+                if (wasNearBottom) scrollBottom();
             });
         }
 
