@@ -20,7 +20,7 @@ Somos *CREDIMAS ORIENTE* y agradecemos que se haya comunicado con nosotros. Ha s
         'vehicular' => [
             'requisitos' => '
 * DNI 
-* TARGETA DE PROPIEDAD 
+* TARjETA DE PROPIEDAD 
 * NO DEBE TENER PAPELETAS
 * EL VEHICULO DEBE ESTAR A SU NOMBRE
 * FOTOS DEL VEHICULO

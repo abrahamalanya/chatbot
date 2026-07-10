@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class WhatsappService
 {
@@ -64,5 +66,40 @@ class WhatsappService
         ];
 
         Http::withToken($token)->post($url, $data);
+    }
+
+    /**
+     * Descarga un archivo multimedia recibido de un cliente y lo guarda en el disco público.
+     *
+     * @param string $mediaId ID del media entregado por Meta en el webhook
+     * @return array{path: string, mime_type: ?string}|null
+     */
+    public function downloadMedia(string $mediaId): ?array
+    {
+        $token = config('services.whatsapp.token');
+
+        $meta = Http::withToken($token)->get("https://graph.facebook.com/v25.0/{$mediaId}");
+
+        if (!$meta->successful() || !$meta->json('url')) {
+            return null;
+        }
+
+        $mimeType = $meta->json('mime_type');
+
+        $file = Http::withToken($token)->get($meta->json('url'));
+
+        if (!$file->successful()) {
+            return null;
+        }
+
+        $extension = preg_replace('/[^a-z0-9]/i', '', explode('/', explode(';', (string) $mimeType)[0])[1] ?? '') ?: 'bin';
+        $path      = 'whatsapp-media/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
+
+        Storage::disk('public')->put($path, $file->body());
+
+        return [
+            'path'      => $path,
+            'mime_type' => $mimeType,
+        ];
     }
 }

@@ -117,14 +117,14 @@
                     @elseif($msg->sender === 'asesor')
                     <div class="flex justify-end">
                         <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
-                            {{ $msg->mensaje }}
+                            @include('dashboard.partials.message-content', ['msg' => $msg, 'light' => true])
                             <p class="text-xs text-blue-300 mt-1 text-right">{{ $msg->created_at->format('H:i') }}</p>
                         </div>
                     </div>
                     @else
                     <div class="flex justify-start">
                         <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
-                            {{ $msg->mensaje }}
+                            @include('dashboard.partials.message-content', ['msg' => $msg, 'light' => false])
                             <p class="text-xs text-gray-400 mt-1">{{ $msg->created_at->format('H:i') }}</p>
                         </div>
                     </div>
@@ -305,6 +305,48 @@
             if (box) box.scrollTop = box.scrollHeight;
         }
 
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str ?? '';
+            return div.innerHTML;
+        }
+
+        function renderContent(msg, light) {
+            const textColor = light ? 'text-white' : 'text-gray-800';
+
+            if (msg.tipo === 'imagen') {
+                const img = msg.media_url
+                    ? `<a href="${msg.media_url}" target="_blank" rel="noopener">
+                         <img src="${msg.media_url}" alt="Imagen" class="rounded-lg max-w-full max-h-60 object-cover mb-1">
+                       </a>`
+                    : '';
+                const caption = (msg.mensaje && msg.mensaje !== '📷 Imagen') ? `<p>${escapeHtml(msg.mensaje)}</p>` : '';
+                return img + caption;
+            }
+
+            if (msg.tipo === 'documento') {
+                if (!msg.media_url) return `<p>${escapeHtml(msg.mensaje)}</p>`;
+                return `<a href="${msg.media_url}" target="_blank" rel="noopener" class="flex items-center gap-2 ${textColor} underline decoration-dotted">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span class="truncate">${escapeHtml(msg.media_filename || 'Documento')}</span>
+                </a>`;
+            }
+
+            if (msg.tipo === 'ubicacion') {
+                return `<a href="https://www.google.com/maps?q=${msg.latitude},${msg.longitude}" target="_blank" rel="noopener" class="flex items-center gap-2 ${textColor} underline decoration-dotted">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span>${escapeHtml(msg.mensaje)}</span>
+                </a>`;
+            }
+
+            return escapeHtml(msg.mensaje);
+        }
+
         function renderMsg(msg) {
             const hora = new Date(msg.created_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
 
@@ -314,21 +356,21 @@
                         <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
                         </svg>
-                        ${msg.mensaje}
+                        ${escapeHtml(msg.mensaje)}
                     </span>
                 </div>`;
             }
             if (msg.sender === 'asesor') {
                 return `<div class="flex justify-end">
                     <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
-                        ${msg.mensaje}
+                        ${renderContent(msg, true)}
                         <p class="text-xs text-blue-300 mt-1 text-right">${hora}</p>
                     </div>
                 </div>`;
             }
             return `<div class="flex justify-start">
                 <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
-                    ${msg.mensaje}
+                    ${renderContent(msg, false)}
                     <p class="text-xs text-gray-400 mt-1">${hora}</p>
                 </div>
             </div>`;
