@@ -35,8 +35,8 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('/users', UserController::class)->except(['show']);
     });
 
-    // Asesor: chat con clientes
-    Route::middleware(['role:asesor'])->group(function () {
+    // Asesor y Supervisor: chat con clientes
+    Route::middleware(['role:asesor|supervisor'])->group(function () {
         Route::get('/chat', [ChatController::class, 'index'])->name('chat.index');
         Route::get('/chat/messages', [ChatController::class, 'messages'])->name('chat.messages');
         Route::post('/chat/send', [ChatController::class, 'send'])->name('chat.send');

@@ -13,6 +13,7 @@ class RolesAndUsersSeeder extends Seeder
         Role::firstOrCreate(['name' => 'sistema']);
         Role::firstOrCreate(['name' => 'admin']);
         Role::firstOrCreate(['name' => 'asesor']);
+        Role::firstOrCreate(['name' => 'supervisor']);
 
         $sistema = User::firstOrCreate(
             ['email' => 'abrahamalanya@laravel.com'],
