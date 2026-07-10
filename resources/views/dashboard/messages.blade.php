@@ -119,7 +119,7 @@
                             <div class="max-w-xs lg:max-w-md">
                                 <p class="text-[10px] text-gray-400 text-right mb-0.5">{{ $msg->advisor?->nombre ?? 'Asesor' }}</p>
                                 <div class="bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
-                                    {{ $msg->mensaje }}
+                                    @include('dashboard.partials.message-content', ['msg' => $msg, 'light' => true])
                                     <p class="text-xs text-blue-300 mt-1 text-right">{{ $msg->created_at->format('H:i') }}</p>
                                 </div>
                             </div>
@@ -127,7 +127,7 @@
                         @else
                         <div class="flex justify-start">
                             <div class="max-w-xs lg:max-w-md bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
-                                {{ $msg->mensaje }}
+                                @include('dashboard.partials.message-content', ['msg' => $msg, 'light' => false])
                                 <p class="text-xs text-gray-400 mt-1">{{ $msg->created_at->format('H:i') }}</p>
                             </div>
                         </div>

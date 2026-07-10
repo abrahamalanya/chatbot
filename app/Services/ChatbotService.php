@@ -64,6 +64,13 @@ class ChatbotService
             }
             $this->sendMenu($from);
 
+        } elseif (in_array($message['type'], ['image', 'document', 'location', 'video', 'audio'])) {
+            // Guardar media/ubicación aunque esté en pending
+            if ($assignment) {
+                $this->saveMediaMessage($from, $assignment->advisor_id ?? null, $message);
+            }
+            $this->sendMenu($from);
+
         } elseif ($message['type'] === 'interactive') {
             $reply = $message['interactive']['button_reply']['id'] ?? null;
             if (!$reply) return;
@@ -120,6 +127,8 @@ class ChatbotService
             if ($reply) {
                 $this->saveOpcion($from, $advisorId, $reply);
             }
+        } elseif (in_array($message['type'], ['image', 'document', 'location', 'video', 'audio'])) {
+            $this->saveMediaMessage($from, $advisorId, $message);
         }
     }
 
@@ -144,6 +153,47 @@ class ChatbotService
             'mensaje'          => $label,
             'sender'           => 'cliente',
             'tipo'             => 'opcion',
+        ]);
+    }
+
+    private function saveMediaMessage(string $from, ?int $advisorId, array $message): void
+    {
+        if ($message['type'] === 'location') {
+            $location = $message['location'];
+
+            Message::create([
+                'cliente_telefono' => $from,
+                'advisor_id'       => $advisorId,
+                'mensaje'          => $location['name'] ?? $location['address'] ?? 'Ubicación compartida',
+                'sender'           => 'cliente',
+                'tipo'             => 'ubicacion',
+                'latitude'         => $location['latitude'],
+                'longitude'        => $location['longitude'],
+            ]);
+            return;
+        }
+
+        $type    = $message['type']; // image | document | video | audio
+        $mediaId = $message[$type]['id'] ?? null;
+
+        if (!$mediaId) {
+            return;
+        }
+
+        $tipos       = ['image' => 'imagen', 'document' => 'documento', 'video' => 'video', 'audio' => 'audio'];
+        $etiquetas   = ['image' => '📷 Imagen', 'document' => '📄 Documento', 'video' => '🎥 Video', 'audio' => '🎧 Audio'];
+
+        $media = $this->whatsapp->downloadMedia($mediaId);
+
+        Message::create([
+            'cliente_telefono' => $from,
+            'advisor_id'       => $advisorId,
+            'mensaje'          => $message[$type]['caption'] ?? $etiquetas[$type],
+            'sender'           => 'cliente',
+            'tipo'             => $tipos[$type],
+            'media_path'       => $media['path'] ?? null,
+            'media_mime_type'  => $media['mime_type'] ?? null,
+            'media_filename'   => $message[$type]['filename'] ?? null,
         ]);
     }
 

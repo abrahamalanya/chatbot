@@ -17,6 +17,7 @@
                         <th class="text-left px-6 py-3">Nombre</th>
                         <th class="text-left px-6 py-3">Teléfono</th>
                         <th class="text-left px-6 py-3">Email</th>
+                        <th class="text-center px-6 py-3">Rol</th>
                         <th class="text-center px-6 py-3">Estado</th>
                         <th class="px-6 py-3"></th>
                     </tr>
@@ -27,6 +28,14 @@
                         <td class="px-6 py-4 font-medium text-gray-800">{{ $advisor->nombre }}</td>
                         <td class="px-6 py-4 text-gray-600">{{ $advisor->telefono }}</td>
                         <td class="px-6 py-4 text-gray-600">{{ $advisor->user?->email ?? '—' }}</td>
+                        <td class="px-6 py-4 text-center">
+                            @php $role = $advisor->user?->getRoleNames()->first(); @endphp
+                            @if($role === 'supervisor')
+                                <span class="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">Supervisor</span>
+                            @else
+                                <span class="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">Asesor</span>
+                            @endif
+                        </td>
                         <td class="px-6 py-4 text-center">
                             @if($advisor->activo)
                                 <span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">Activo</span>
@@ -47,7 +56,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-400">No hay asesores registrados.</td>
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-400">No hay asesores registrados.</td>
                     </tr>
                     @endforelse
                 </tbody>

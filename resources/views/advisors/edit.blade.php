@@ -22,6 +22,16 @@
                     @error('telefono') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
 
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                    <select name="role"
+                            class="w-full border {{ $errors->has('role') ? 'border-red-400' : 'border-gray-300' }} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="asesor" {{ old('role', $currentRole) === 'asesor' ? 'selected' : '' }}>Asesor</option>
+                        <option value="supervisor" {{ old('role', $currentRole) === 'supervisor' ? 'selected' : '' }}>Supervisor</option>
+                    </select>
+                    @error('role') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+
                 <div class="flex items-center gap-2">
                     <input type="hidden" name="activo" value="0">
                     <input type="checkbox" name="activo" id="activo" value="1"
