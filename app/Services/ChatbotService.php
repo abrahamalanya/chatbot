@@ -34,6 +34,9 @@ class ChatbotService
         'asesor'                  => 'Solicitó hablar con un asesor',
         'menu'                    => 'Volvió al menú',
         'salir'                   => 'Salió del chat',
+        'espera_seguir'           => 'Eligió seguir esperando a un asesor',
+        'espera_mensaje'          => 'Prefirió dejar su consulta por escrito',
+        'espera_cancelar'         => 'Canceló la espera de un asesor',
     ];
 
     public function __construct(AssignmentService $assignment, WhatsappService $whatsapp)
@@ -61,6 +64,10 @@ class ChatbotService
             // Guardar mensaje de texto aunque esté en pending
             if ($assignment) {
                 $this->saveTextMessage($from, $assignment->advisor_id ?? null, $message['text']['body']);
+
+                if ($this->cerrarSiEraNotaDeEspera($from, $assignment)) {
+                    return;
+                }
             }
             $this->sendMenu($from);
 
@@ -68,6 +75,10 @@ class ChatbotService
             // Guardar media/ubicación aunque esté en pending
             if ($assignment) {
                 $this->saveMediaMessage($from, $assignment->advisor_id ?? null, $message);
+
+                if ($this->cerrarSiEraNotaDeEspera($from, $assignment)) {
+                    return;
+                }
             }
             $this->sendMenu($from);
 
@@ -112,8 +123,42 @@ class ChatbotService
 
             } elseif ($reply === 'salir') {
                 $this->replyText($from, config('messages.despedida'));
+
+            } elseif ($reply === 'espera_seguir') {
+                $this->replyText($from, 'Perfecto, seguimos buscando un asesor disponible para ti. Gracias por tu paciencia. 🙏');
+                $assignment?->update(['warning_sent_at' => now()]);
+
+            } elseif ($reply === 'espera_mensaje') {
+                $this->replyText($from, 'Cuéntanos en un solo mensaje qué necesitas y un asesor te llamará apenas esté disponible.');
+                $assignment?->update(['esperando_nota' => true]);
+
+            } elseif ($reply === 'espera_cancelar') {
+                $assignment?->update([
+                    'status'      => Assignment::STATUS_CLOSED,
+                    'disposition' => 'sin_respuesta',
+                ]);
+                $this->replyText($from, 'De acuerdo, hemos cancelado tu solicitud. Cuando quieras puedes volver a escribirnos. 🙏');
             }
         }
+    }
+
+    // Cliente eligió "dejar mensaje" mientras esperaba asesor: el mensaje que
+    // acaba de guardarse (texto, imagen, documento, etc.) es su consulta.
+    private function cerrarSiEraNotaDeEspera(string $from, Assignment $assignment): bool
+    {
+        if ($assignment->status !== Assignment::STATUS_PENDING || !$assignment->esperando_nota) {
+            return false;
+        }
+
+        $assignment->update([
+            'status'         => Assignment::STATUS_CLOSED,
+            'disposition'    => 'seguimiento',
+            'esperando_nota' => false,
+        ]);
+
+        $this->replyText($from, '¡Gracias! Hemos registrado tu consulta. Un asesor de CREDIMAS te llamará en cuanto esté disponible. 📞');
+
+        return true;
     }
 
     // ── Helpers para guardar mensajes ──────────────────────────────────────
@@ -217,6 +262,30 @@ class ChatbotService
                         ['type' => 'reply', 'reply' => ['id' => 'credito_hipotecario', 'title' => 'CRÉDITO HIPOTECARIO']],
                         ['type' => 'reply', 'reply' => ['id' => 'credito_vehicular',   'title' => 'EMPEÑO VEHICULAR']],
                         ['type' => 'reply', 'reply' => ['id' => 'credito_diario',       'title' => 'CREDITOS DIARIOS']],
+                    ],
+                ],
+            ],
+        ]);
+    }
+
+    public function sendEsperaOpciones($to)
+    {
+        $token           = config('services.whatsapp.token');
+        $phone_number_id = config('services.whatsapp.phone_number_id');
+        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
+
+        Http::withToken($token)->post($url, [
+            'messaging_product' => 'whatsapp',
+            'to'          => $to,
+            'type'        => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => ['text' => 'Nuestros asesores están ocupados en este momento. ¿Qué prefieres hacer?'],
+                'action' => [
+                    'buttons' => [
+                        ['type' => 'reply', 'reply' => ['id' => 'espera_seguir',   'title' => 'SEGUIR ESPERANDO']],
+                        ['type' => 'reply', 'reply' => ['id' => 'espera_mensaje',  'title' => 'DEJAR MI CONSULTA']],
+                        ['type' => 'reply', 'reply' => ['id' => 'espera_cancelar','title' => 'CANCELAR']],
                     ],
                 ],
             ],
