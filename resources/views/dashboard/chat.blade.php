@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="title">Mis Clientes</x-slot>
 
-    <div class="flex gap-4 h-[calc(100vh-10rem)]" x-data="{ modalCierre: false }">
+    <div class="flex gap-4 h-[calc(100vh-10rem)]" x-data="{ modalCierre: false, modalCliente: false }">
 
         {{-- Lista de clientes --}}
         <div class="w-72 shrink-0 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
@@ -27,7 +27,9 @@
                         @endif
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium text-gray-800 truncate">+{{ $cliente->cliente_telefono }}</p>
+                        <p class="text-sm font-medium text-gray-800 truncate">
+                            {{ $cliente->nombre ?: '+' . $cliente->cliente_telefono }}
+                        </p>
                         <p class="text-xs text-gray-400">
                             @if($latest?->status === 'assigned' && !$latest?->accepted_at)
                                 <span class="text-orange-500 font-medium">Pendiente aceptar</span>
@@ -39,10 +41,15 @@
                                 WhatsApp
                             @endif
                         </p>
+                        @if($latest?->status === 'closed' && $latest?->disposition)
+                        <p class="text-xs text-gray-400 truncate">
+                            {{ \App\Models\Assignment::DISPOSITIONS[$latest->disposition] ?? $latest->disposition }}
+                        </p>
+                        @endif
                     </div>
-                    @if($cliente->total_sesiones > 1)
-                    <span class="shrink-0 w-4 h-4 rounded-full bg-blue-200 text-blue-700 text-[10px] font-bold flex items-center justify-center">
-                        {{ $cliente->total_sesiones }}
+                    @if($cliente->unread_count > 0)
+                    <span class="shrink-0 min-w-[1rem] h-4 px-1 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center" title="Mensajes sin leer">
+                        {{ $cliente->unread_count }}
                     </span>
                     @endif
                 </a>
@@ -65,7 +72,9 @@
                     {{ strtoupper(substr($clienteSeleccionado, -2)) }}
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-gray-800">+{{ $clienteSeleccionado }}</p>
+                    <p class="text-sm font-semibold text-gray-800">
+                        {{ $clienteRegistro?->nombre ?: '+' . $clienteSeleccionado }}
+                    </p>
                     @if($assignment?->status === 'assigned' && !$assignment?->accepted_at)
                         <p class="text-xs text-orange-500">Asignado — pendiente de aceptar</p>
                     @elseif($assignment?->isConversationActive())
@@ -83,11 +92,48 @@
                     @endif
                 </div>
 
+                {{-- Registro de cliente --}}
+                @if($clienteRegistro)
+                <button @click="modalCliente = true"
+                        class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-100 transition"
+                        title="Editar datos del cliente">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
+                    </svg>
+                    {{ \App\Models\Assignment::DISPOSITIONS[$clienteRegistro->etapa] ?? 'Registrado' }}
+                </button>
+                @else
+                <button @click="modalCliente = true"
+                        class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-100 transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                    </svg>
+                    Registrar cliente
+                </button>
+                @endif
+
                 {{-- Countdown --}}
                 @if($assignment?->isConversationActive())
                 <div id="countdown-badge"
                      class="shrink-0 px-2.5 py-1 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-mono tabular-nums"
                      data-expires="{{ $assignment->conversation_expires_at->toIso8601String() }}">—</div>
+                @endif
+
+                {{-- Botón extender tiempo (solo si hay sesión activa) --}}
+                @if($assignment?->status === 'assigned' && $assignment?->accepted_at)
+                <form method="POST" action="{{ route('chat.extend') }}">
+                    @csrf
+                    <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
+                    <input type="hidden" name="minutos" value="10">
+                    <button type="submit"
+                            class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium rounded-lg hover:bg-blue-100 transition"
+                            title="Agregar 10 minutos a la sesión">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        +10 min
+                    </button>
+                </form>
                 @endif
 
                 {{-- Botón cerrar (solo si hay sesión activa) --}}
@@ -228,6 +274,84 @@
                             Confirmar cierre
                         </button>
                         <button type="button" @click="modalCierre = false"
+                                class="flex-1 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Modal de registro de cliente --}}
+        <div x-show="modalCliente"
+             x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+             @click.self="modalCliente = false">
+            <div x-show="modalCliente"
+                 x-transition:enter="transition ease-out duration-150"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 class="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 max-h-[90vh] overflow-y-auto">
+                <h3 class="text-base font-semibold text-gray-800 mb-1">
+                    {{ $clienteRegistro ? 'Editar cliente' : 'Registrar cliente' }}
+                </h3>
+                <p class="text-sm text-gray-500 mb-5">+{{ $clienteSeleccionado }}</p>
+                <form method="POST" action="{{ route('clientes.store') }}">
+                    @csrf
+                    <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
+
+                    <div class="space-y-3 mb-5">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
+                            <input type="text" name="nombre" value="{{ old('nombre', $clienteRegistro?->nombre) }}"
+                                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Correo electrónico</label>
+                            <input type="email" name="correo" value="{{ old('correo', $clienteRegistro?->correo) }}"
+                                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Documento (DNI/RUC)</label>
+                            <input type="text" name="documento" value="{{ old('documento', $clienteRegistro?->documento) }}"
+                                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Tipo de crédito</label>
+                            <select name="tipo_credito" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">— Sin definir —</option>
+                                @foreach(\App\Models\Cliente::TIPOS_CREDITO as $value => $label)
+                                <option value="{{ $value }}" {{ old('tipo_credito', $clienteRegistro?->tipo_credito) === $value ? 'selected' : '' }}>
+                                    {{ $label }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Etapa</label>
+                            <select name="etapa" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">— Sin definir —</option>
+                                @foreach(\App\Models\Assignment::DISPOSITIONS as $value => $label)
+                                <option value="{{ $value }}" {{ old('etapa', $clienteRegistro?->etapa) === $value ? 'selected' : '' }}>
+                                    {{ $label }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Notas</label>
+                            <textarea name="notas" rows="3"
+                                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{{ old('notas', $clienteRegistro?->notas) }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 py-2 bg-blue-900 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition">
+                            Guardar
+                        </button>
+                        <button type="button" @click="modalCliente = false"
                                 class="flex-1 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition">
                             Cancelar
                         </button>

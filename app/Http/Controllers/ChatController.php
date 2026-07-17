@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Assignment;
+use App\Models\Cliente;
 use App\Models\Message;
 use App\Services\AssignmentService;
 use App\Services\WhatsappService;
@@ -31,24 +32,45 @@ class ChatController extends Controller
 
         $latestAssignments = Assignment::whereIn('id', $latestIds)->get()->keyBy('cliente_telefono');
 
+        $unreadCounts = Message::where('sender', 'cliente')
+            ->whereNull('leido_at')
+            ->whereIn('cliente_telefono', Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono'))
+            ->selectRaw('cliente_telefono, COUNT(*) as unread_count')
+            ->groupBy('cliente_telefono')
+            ->pluck('unread_count', 'cliente_telefono');
+
+        $nombresRegistrados = Cliente::whereIn('cliente_telefono', Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono'))
+            ->whereNotNull('nombre')
+            ->pluck('nombre', 'cliente_telefono');
+
         $clientes = Assignment::where('advisor_id', $advisor->id)
             ->selectRaw('cliente_telefono, COUNT(*) as total_sesiones, MAX(created_at) as last_activity')
             ->groupBy('cliente_telefono')
             ->orderByDesc('last_activity')
             ->get()
-            ->map(function ($c) use ($latestAssignments) {
-                $c->latest = $latestAssignments[$c->cliente_telefono] ?? null;
+            ->map(function ($c) use ($latestAssignments, $unreadCounts, $nombresRegistrados) {
+                $c->latest        = $latestAssignments[$c->cliente_telefono] ?? null;
+                $c->unread_count  = $unreadCounts[$c->cliente_telefono] ?? 0;
+                $c->nombre        = $nombresRegistrados[$c->cliente_telefono] ?? null;
                 return $c;
             });
 
         $clienteSeleccionado = $request->cliente;
         $mensajes            = [];
         $assignment          = null;
+        $clienteRegistro     = null;
 
         if ($clienteSeleccionado) {
+            $clienteRegistro = Cliente::where('cliente_telefono', $clienteSeleccionado)->first();
+
             $mensajes = Message::where('cliente_telefono', $clienteSeleccionado)
                 ->orderBy('created_at')
                 ->get();
+
+            Message::where('cliente_telefono', $clienteSeleccionado)
+                ->where('sender', 'cliente')
+                ->whereNull('leido_at')
+                ->update(['leido_at' => now()]);
 
             $assignment = Assignment::where('cliente_telefono', $clienteSeleccionado)
                 ->where('advisor_id', $advisor->id)
@@ -73,12 +95,17 @@ class ChatController extends Controller
         }
 
         return view('dashboard.chat', compact(
-            'clientes', 'advisor', 'clienteSeleccionado', 'mensajes', 'assignment'
+            'clientes', 'advisor', 'clienteSeleccionado', 'mensajes', 'assignment', 'clienteRegistro'
         ));
     }
 
     public function messages(Request $request)
     {
+        Message::where('cliente_telefono', $request->cliente_telefono)
+            ->where('sender', 'cliente')
+            ->whereNull('leido_at')
+            ->update(['leido_at' => now()]);
+
         $mensajes = Message::where('cliente_telefono', $request->cliente_telefono)
             ->orderBy('created_at')
             ->get();
@@ -107,6 +134,33 @@ class ChatController extends Controller
 
         return redirect()->route('chat.index', ['cliente' => $request->cliente_telefono])
             ->with('success', "Conversación aceptada. Tienes {$assignment->conversation_duration} minutos.");
+    }
+
+    public function extend(Request $request)
+    {
+        $request->validate([
+            'cliente_telefono' => 'required',
+            'minutos'          => 'nullable|integer|min:1|max:60',
+        ]);
+
+        $advisor = auth()->user()->advisor;
+
+        $assignment = Assignment::where('cliente_telefono', $request->cliente_telefono)
+            ->where('advisor_id', $advisor->id)
+            ->where('status', Assignment::STATUS_ASSIGNED)
+            ->whereNotNull('accepted_at')
+            ->latest()
+            ->first();
+
+        if (!$assignment) {
+            return back()->with('error', 'No se encontró una conversación activa para extender.');
+        }
+
+        $minutos = $request->input('minutos', 10);
+
+        $this->assignment->extendConversation($assignment, $minutos);
+
+        return back()->with('success', "Se agregaron {$minutos} minutos a la sesión.");
     }
 
     public function send(Request $request)
@@ -162,6 +216,9 @@ class ChatController extends Controller
                 'status'      => Assignment::STATUS_CLOSED,
                 'disposition' => $request->disposition,
             ]);
+
+        Cliente::where('cliente_telefono', $request->cliente_telefono)
+            ->update(['etapa' => $request->disposition]);
 
         $this->despedirCliente($request->cliente_telefono, $advisor->id);
 

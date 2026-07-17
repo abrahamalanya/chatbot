@@ -18,7 +18,9 @@
                         {{ strtoupper(substr($cliente->cliente_telefono, -2)) }}
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm font-medium text-gray-800 truncate">+{{ $cliente->cliente_telefono }}</p>
+                        <p class="text-sm font-medium text-gray-800 truncate">
+                            {{ $cliente->nombre ?: '+' . $cliente->cliente_telefono }}
+                        </p>
                         <p class="text-xs text-gray-400">{{ \Carbon\Carbon::parse($cliente->last_activity)->diffForHumans() }}</p>
                     </div>
                 </a>
@@ -38,7 +40,9 @@
             {{-- Historial de asignaciones --}}
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm shrink-0">
                 <div class="px-5 py-3 border-b border-gray-100">
-                    <p class="text-sm font-semibold text-gray-700">Historial de atenciones · +{{ $clienteSeleccionado }}</p>
+                    <p class="text-sm font-semibold text-gray-700">
+                        Historial de atenciones · {{ $clienteNombre ?: '+' . $clienteSeleccionado }}
+                    </p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs">

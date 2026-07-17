@@ -22,6 +22,10 @@ class Message extends Model
 
     protected $appends = ['media_url'];
 
+    protected $casts = [
+        'leido_at' => 'datetime',
+    ];
+
     public function advisor()
     {
         return $this->belongsTo(Advisor::class);

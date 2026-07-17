@@ -79,4 +79,18 @@ class AssignmentService
 
         return $assignment->fresh();
     }
+
+    public function extendConversation(Assignment $assignment, int $minutes = 10): Assignment
+    {
+        $base = $assignment->conversation_expires_at && $assignment->conversation_expires_at->isFuture()
+            ? $assignment->conversation_expires_at
+            : now();
+
+        $assignment->update([
+            'conversation_expires_at' => $base->copy()->addMinutes($minutes),
+            'conversation_duration'   => $assignment->conversation_duration + $minutes,
+        ]);
+
+        return $assignment->fresh();
+    }
 }
