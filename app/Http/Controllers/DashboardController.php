@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Advisor;
 use App\Models\Assignment;
+use App\Models\Cliente;
 use App\Models\Message;
 use App\Services\AssignmentService;
 use Illuminate\Http\Request;
@@ -57,12 +58,19 @@ class DashboardController extends Controller
     public function messages(Request $request)
     {
         // Clientes únicos con su última actividad
+        $nombresRegistrados = Cliente::whereNotNull('nombre')->pluck('nombre', 'cliente_telefono');
+
         $clientes = Assignment::selectRaw('cliente_telefono, MAX(created_at) as last_activity')
             ->groupBy('cliente_telefono')
             ->orderByDesc('last_activity')
-            ->get();
+            ->get()
+            ->map(function ($c) use ($nombresRegistrados) {
+                $c->nombre = $nombresRegistrados[$c->cliente_telefono] ?? null;
+                return $c;
+            });
 
         $clienteSeleccionado = $request->cliente;
+        $clienteNombre       = $nombresRegistrados[$clienteSeleccionado] ?? null;
         $mensajes            = [];
         $historial           = [];
 
@@ -78,7 +86,7 @@ class DashboardController extends Controller
                 ->get();
         }
 
-        return view('dashboard.messages', compact('clientes', 'clienteSeleccionado', 'mensajes', 'historial'));
+        return view('dashboard.messages', compact('clientes', 'clienteSeleccionado', 'clienteNombre', 'mensajes', 'historial'));
     }
 
     public function assign(Request $request, Assignment $assignment)
