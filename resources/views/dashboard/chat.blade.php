@@ -39,10 +39,15 @@
                                 WhatsApp
                             @endif
                         </p>
+                        @if($latest?->status === 'closed' && $latest?->disposition)
+                        <p class="text-xs text-gray-400 truncate">
+                            {{ \App\Models\Assignment::DISPOSITIONS[$latest->disposition] ?? $latest->disposition }}
+                        </p>
+                        @endif
                     </div>
-                    @if($cliente->total_sesiones > 1)
-                    <span class="shrink-0 w-4 h-4 rounded-full bg-blue-200 text-blue-700 text-[10px] font-bold flex items-center justify-center">
-                        {{ $cliente->total_sesiones }}
+                    @if($cliente->unread_count > 0)
+                    <span class="shrink-0 min-w-[1rem] h-4 px-1 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center" title="Mensajes sin leer">
+                        {{ $cliente->unread_count }}
                     </span>
                     @endif
                 </a>
@@ -88,6 +93,23 @@
                 <div id="countdown-badge"
                      class="shrink-0 px-2.5 py-1 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-mono tabular-nums"
                      data-expires="{{ $assignment->conversation_expires_at->toIso8601String() }}">—</div>
+                @endif
+
+                {{-- Botón extender tiempo (solo si hay sesión activa) --}}
+                @if($assignment?->status === 'assigned' && $assignment?->accepted_at)
+                <form method="POST" action="{{ route('chat.extend') }}">
+                    @csrf
+                    <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
+                    <input type="hidden" name="minutos" value="10">
+                    <button type="submit"
+                            class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium rounded-lg hover:bg-blue-100 transition"
+                            title="Agregar 10 minutos a la sesión">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        +10 min
+                    </button>
+                </form>
                 @endif
 
                 {{-- Botón cerrar (solo si hay sesión activa) --}}
