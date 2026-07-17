@@ -27,11 +27,16 @@ class Assignment extends Model
         'conversation_duration',
         'conversation_expires_at',
         'disposition',
+        'warning_sent_at',
+        'warning_count',
+        'esperando_nota',
     ];
 
     protected $casts = [
         'accepted_at'             => 'datetime',
         'conversation_expires_at' => 'datetime',
+        'warning_sent_at'         => 'datetime',
+        'esperando_nota'          => 'boolean',
     ];
 
     public function isAccepted(): bool
