@@ -45,8 +45,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/extend', [ChatController::class, 'extend'])->name('chat.extend');
         Route::post('/chat/close', [ChatController::class, 'close'])->name('chat.close');
 
-        Route::get('/clientes', [ClienteController::class, 'index'])->name('clientes.index');
         Route::post('/clientes', [ClienteController::class, 'store'])->name('clientes.store');
+    });
+
+    // Módulo de clientes registrados: visible para asesor/supervisor (los suyos) y admin/sistema (todos)
+    Route::middleware(['role:asesor|supervisor|admin|sistema'])->group(function () {
+        Route::get('/clientes', [ClienteController::class, 'index'])->name('clientes.index');
     });
 
     // Perfil (ambos roles)

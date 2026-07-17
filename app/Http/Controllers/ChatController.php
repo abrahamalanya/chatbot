@@ -39,14 +39,19 @@ class ChatController extends Controller
             ->groupBy('cliente_telefono')
             ->pluck('unread_count', 'cliente_telefono');
 
+        $nombresRegistrados = Cliente::whereIn('cliente_telefono', Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono'))
+            ->whereNotNull('nombre')
+            ->pluck('nombre', 'cliente_telefono');
+
         $clientes = Assignment::where('advisor_id', $advisor->id)
             ->selectRaw('cliente_telefono, COUNT(*) as total_sesiones, MAX(created_at) as last_activity')
             ->groupBy('cliente_telefono')
             ->orderByDesc('last_activity')
             ->get()
-            ->map(function ($c) use ($latestAssignments, $unreadCounts) {
+            ->map(function ($c) use ($latestAssignments, $unreadCounts, $nombresRegistrados) {
                 $c->latest        = $latestAssignments[$c->cliente_telefono] ?? null;
                 $c->unread_count  = $unreadCounts[$c->cliente_telefono] ?? 0;
+                $c->nombre        = $nombresRegistrados[$c->cliente_telefono] ?? null;
                 return $c;
             });
 

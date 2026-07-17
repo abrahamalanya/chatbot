@@ -27,7 +27,9 @@
                         @endif
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium text-gray-800 truncate">+{{ $cliente->cliente_telefono }}</p>
+                        <p class="text-sm font-medium text-gray-800 truncate">
+                            {{ $cliente->nombre ?: '+' . $cliente->cliente_telefono }}
+                        </p>
                         <p class="text-xs text-gray-400">
                             @if($latest?->status === 'assigned' && !$latest?->accepted_at)
                                 <span class="text-orange-500 font-medium">Pendiente aceptar</span>
@@ -70,7 +72,9 @@
                     {{ strtoupper(substr($clienteSeleccionado, -2)) }}
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-gray-800">+{{ $clienteSeleccionado }}</p>
+                    <p class="text-sm font-semibold text-gray-800">
+                        {{ $clienteRegistro?->nombre ?: '+' . $clienteSeleccionado }}
+                    </p>
                     @if($assignment?->status === 'assigned' && !$assignment?->accepted_at)
                         <p class="text-xs text-orange-500">Asignado — pendiente de aceptar</p>
                     @elseif($assignment?->isConversationActive())

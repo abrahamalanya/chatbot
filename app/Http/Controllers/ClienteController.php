@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Advisor;
 use App\Models\Assignment;
 use App\Models\Cliente;
 use Illuminate\Http\Request;
@@ -10,15 +11,18 @@ class ClienteController extends Controller
 {
     public function index(Request $request)
     {
-        $advisor = auth()->user()->advisor;
+        $isAdmin   = auth()->user()->hasAnyRole(['sistema', 'admin']);
+        $advisores = $isAdmin ? Advisor::orderBy('nombre')->get() : collect();
 
-        $clientes = Cliente::where('advisor_id', $advisor->id)
+        $clientes = Cliente::with('advisor')
+            ->when(!$isAdmin, fn ($q) => $q->where('advisor_id', auth()->user()->advisor->id))
+            ->when($isAdmin && $request->advisor_id, fn ($q) => $q->where('advisor_id', $request->advisor_id))
             ->when($request->etapa, fn ($q) => $q->where('etapa', $request->etapa))
             ->when($request->tipo_credito, fn ($q) => $q->where('tipo_credito', $request->tipo_credito))
             ->orderByDesc('updated_at')
             ->get();
 
-        return view('dashboard.clientes.index', compact('clientes'));
+        return view('dashboard.clientes.index', compact('clientes', 'isAdmin', 'advisores'));
     }
 
     public function store(Request $request)

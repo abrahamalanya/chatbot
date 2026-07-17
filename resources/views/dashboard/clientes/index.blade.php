@@ -26,13 +26,24 @@
     @endphp
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-wrap gap-3">
             <div>
-                <h2 class="font-semibold text-gray-800">Clientes registrados</h2>
+                <h2 class="font-semibold text-gray-800">
+                    {{ $isAdmin ? 'Clientes registrados (todos los asesores)' : 'Clientes registrados' }}
+                </h2>
                 <p class="text-xs text-gray-400 mt-0.5">{{ $clientes->count() }} clientes con ficha registrada</p>
             </div>
 
-            <form method="GET" action="{{ route('clientes.index') }}" class="flex items-center gap-2">
+            <form method="GET" action="{{ route('clientes.index') }}" class="flex items-center gap-2 flex-wrap">
+                @if($isAdmin)
+                <select name="advisor_id" onchange="this.form.submit()"
+                        class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Todos los asesores</option>
+                    @foreach($advisores as $asesor)
+                    <option value="{{ $asesor->id }}" {{ request('advisor_id') == $asesor->id ? 'selected' : '' }}>{{ $asesor->nombre }}</option>
+                    @endforeach
+                </select>
+                @endif
                 <select name="etapa" onchange="this.form.submit()"
                         class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">Todas las etapas</option>
@@ -47,7 +58,7 @@
                     <option value="{{ $value }}" {{ request('tipo_credito') === $value ? 'selected' : '' }}>{{ $label }}</option>
                     @endforeach
                 </select>
-                @if(request('etapa') || request('tipo_credito'))
+                @if(request('etapa') || request('tipo_credito') || request('advisor_id'))
                 <a href="{{ route('clientes.index') }}" class="text-xs text-gray-400 hover:text-gray-600">Limpiar</a>
                 @endif
             </form>
@@ -59,6 +70,9 @@
                     <tr>
                         <th class="text-left px-6 py-3">Cliente</th>
                         <th class="text-left px-6 py-3">Nombre</th>
+                        @if($isAdmin)
+                        <th class="text-left px-6 py-3">Asesor</th>
+                        @endif
                         <th class="text-left px-6 py-3">Crédito</th>
                         <th class="text-left px-6 py-3">Etapa</th>
                         <th class="text-left px-6 py-3">Contacto</th>
@@ -78,6 +92,9 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 text-gray-600">{{ $cliente->nombre ?: '—' }}</td>
+                        @if($isAdmin)
+                        <td class="px-6 py-4 text-gray-600">{{ $cliente->advisor?->nombre ?? '—' }}</td>
+                        @endif
                         <td class="px-6 py-4 text-gray-600">
                             {{ \App\Models\Cliente::TIPOS_CREDITO[$cliente->tipo_credito] ?? '—' }}
                         </td>
@@ -97,14 +114,23 @@
                         </td>
                         <td class="px-6 py-4 text-gray-400 text-xs">{{ $cliente->updated_at->format('d/m/Y H:i') }}</td>
                         <td class="px-6 py-4 text-right">
+                            @if($isAdmin)
+                            <a href="{{ route('admin.messages', ['cliente' => $cliente->cliente_telefono]) }}"
+                               class="text-blue-600 hover:underline text-xs">Ver chat</a>
+                            @else
                             <a href="{{ route('chat.index', ['cliente' => $cliente->cliente_telefono]) }}"
                                class="text-blue-600 hover:underline text-xs">Ver chat</a>
+                            @endif
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-10 text-center text-gray-400">
-                            Aún no has registrado clientes. Ábrelos desde "Mis Clientes" y usa el botón "Registrar cliente".
+                        <td colspan="{{ $isAdmin ? 8 : 7 }}" class="px-6 py-10 text-center text-gray-400">
+                            @if($isAdmin)
+                                Aún no hay clientes registrados por los asesores.
+                            @else
+                                Aún no has registrado clientes. Ábrelos desde "Mis Clientes" y usa el botón "Registrar cliente".
+                            @endif
                         </td>
                     </tr>
                     @endforelse
