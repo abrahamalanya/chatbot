@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdvisorController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
@@ -43,6 +44,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/accept', [ChatController::class, 'accept'])->name('chat.accept');
         Route::post('/chat/extend', [ChatController::class, 'extend'])->name('chat.extend');
         Route::post('/chat/close', [ChatController::class, 'close'])->name('chat.close');
+
+        Route::get('/clientes', [ClienteController::class, 'index'])->name('clientes.index');
+        Route::post('/clientes', [ClienteController::class, 'store'])->name('clientes.store');
     });
 
     // Perfil (ambos roles)

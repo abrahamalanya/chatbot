@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Assignment;
+use App\Models\Cliente;
 use App\Models\Message;
 use App\Services\AssignmentService;
 use App\Services\WhatsappService;
@@ -52,8 +53,11 @@ class ChatController extends Controller
         $clienteSeleccionado = $request->cliente;
         $mensajes            = [];
         $assignment          = null;
+        $clienteRegistro     = null;
 
         if ($clienteSeleccionado) {
+            $clienteRegistro = Cliente::where('cliente_telefono', $clienteSeleccionado)->first();
+
             $mensajes = Message::where('cliente_telefono', $clienteSeleccionado)
                 ->orderBy('created_at')
                 ->get();
@@ -86,7 +90,7 @@ class ChatController extends Controller
         }
 
         return view('dashboard.chat', compact(
-            'clientes', 'advisor', 'clienteSeleccionado', 'mensajes', 'assignment'
+            'clientes', 'advisor', 'clienteSeleccionado', 'mensajes', 'assignment', 'clienteRegistro'
         ));
     }
 
@@ -207,6 +211,9 @@ class ChatController extends Controller
                 'status'      => Assignment::STATUS_CLOSED,
                 'disposition' => $request->disposition,
             ]);
+
+        Cliente::where('cliente_telefono', $request->cliente_telefono)
+            ->update(['etapa' => $request->disposition]);
 
         $this->despedirCliente($request->cliente_telefono, $advisor->id);
 
