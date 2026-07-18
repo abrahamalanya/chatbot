@@ -59,6 +59,11 @@
                                 Recurrente
                             </span>
                             @endif
+                            @if($pendiente->nota_dejada)
+                            <span class="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded-full uppercase tracking-wide">
+                                Dejó su consulta
+                            </span>
+                            @endif
                         </div>
                         <p class="text-xs text-gray-400">Solicitud {{ $pendiente->created_at->diffForHumans() }}</p>
                     </div>
@@ -122,7 +127,7 @@
     </div>
 
     {{-- Historial de atenciones --}}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100" x-data="{ openHistId: null }">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-wrap gap-3">
             <h2 class="font-semibold text-gray-800">Historial de atenciones</h2>
             <div class="flex items-center gap-2">
@@ -154,6 +159,7 @@
                         <th class="text-center px-6 py-3">Ventana chat</th>
                         <th class="text-center px-6 py-3">Resultado</th>
                         <th class="text-center px-6 py-3">Estado</th>
+                        <th class="px-6 py-3"></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -199,10 +205,63 @@
                                 <span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">Activo</span>
                             @endif
                         </td>
+                        <td class="px-6 py-3 text-right">
+                            @if(!$asignado->advisor_id)
+                            <button @click="openHistId = openHistId === {{ $asignado->id }} ? null : {{ $asignado->id }}"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition whitespace-nowrap">
+                                Asignar asesor
+                                <svg class="w-3 h-3 transition-transform" :class="openHistId === {{ $asignado->id }} ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            @endif
+                        </td>
                     </tr>
+                    @if(!$asignado->advisor_id)
+                    <tr x-show="openHistId === {{ $asignado->id }}"
+                        x-transition:enter="transition ease-out duration-100"
+                        x-transition:enter-start="opacity-0 -translate-y-1"
+                        x-transition:enter-end="opacity-100 translate-y-0">
+                        <td colspan="7" class="px-6 pb-4">
+                            <form method="POST" action="{{ route('assignments.assign', $asignado) }}"
+                                  class="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+                                @csrf
+                                <div class="flex items-center gap-3">
+                                    <select name="advisor_id"
+                                            class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                        <option value="">Selecciona un asesor...</option>
+                                        @foreach($asesores as $asesor)
+                                            <option value="{{ $asesor->id }}">{{ $asesor->nombre }} — {{ $asesor->assignments()->assigned()->count() }} clientes activos</option>
+                                        @endforeach
+                                    </select>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <label class="text-xs text-gray-500 whitespace-nowrap">Tiempo:</label>
+                                        <select name="duration"
+                                                class="border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                            <option value="5">5 min</option>
+                                            <option value="15" selected>15 min</option>
+                                            <option value="30">30 min</option>
+                                            <option value="60">1 hora</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button type="submit"
+                                            class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition">
+                                        Confirmar asignación
+                                    </button>
+                                    <button type="button" @click="openHistId = null"
+                                            class="px-3 py-2 text-gray-500 hover:text-gray-700 text-sm">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                    @endif
                     @empty
                     <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-gray-400">No hay atenciones aún.</td>
+                        <td colspan="7" class="px-6 py-8 text-center text-gray-400">No hay atenciones aún.</td>
                     </tr>
                     @endforelse
                 </tbody>

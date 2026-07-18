@@ -129,7 +129,7 @@ class ChatbotService
                 $assignment?->update(['warning_sent_at' => now()]);
 
             } elseif ($reply === 'espera_mensaje') {
-                $this->replyText($from, 'Cuéntanos en un solo mensaje qué necesitas y un asesor te llamará apenas esté disponible.');
+                $this->replyText($from, 'Cuéntanos en un solo mensaje qué necesitas y un asesor te escribirá apenas esté disponible.');
                 $assignment?->update(['esperando_nota' => true]);
 
             } elseif ($reply === 'espera_cancelar') {
@@ -150,13 +150,15 @@ class ChatbotService
             return false;
         }
 
+        // Se mantiene en pending (no pasa a historial) para que siga apareciendo
+        // en "Clientes en espera" y se le pueda asignar un asesor normalmente.
         $assignment->update([
-            'status'         => Assignment::STATUS_CLOSED,
-            'disposition'    => 'seguimiento',
-            'esperando_nota' => false,
+            'esperando_nota'  => false,
+            'nota_dejada'     => true,
+            'warning_sent_at' => now(),
         ]);
 
-        $this->replyText($from, '¡Gracias! Hemos registrado tu consulta. Un asesor de CREDIMAS te llamará en cuanto esté disponible. 📞');
+        $this->replyText($from, '¡Gracias! Hemos registrado tu consulta. Un asesor de CREDIMAS te escribirá en cuanto esté disponible.');
 
         return true;
     }

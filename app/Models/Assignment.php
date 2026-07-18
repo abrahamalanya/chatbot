@@ -30,6 +30,7 @@ class Assignment extends Model
         'warning_sent_at',
         'warning_count',
         'esperando_nota',
+        'nota_dejada',
     ];
 
     protected $casts = [
@@ -37,6 +38,7 @@ class Assignment extends Model
         'conversation_expires_at' => 'datetime',
         'warning_sent_at'         => 'datetime',
         'esperando_nota'          => 'boolean',
+        'nota_dejada'             => 'boolean',
     ];
 
     public function isAccepted(): bool
