@@ -23,7 +23,10 @@ class CheckWaitingAssignments extends Command
         foreach ($pendientes as $assignment) {
             $minutosEsperando = $assignment->created_at->diffInMinutes(now());
 
-            if ($minutosEsperando >= self::MAX_ESPERA_MINUTOS) {
+            // Ya dejó su consulta por escrito: no se cierra automáticamente
+            // (no queremos perder su solicitud), pero sigue recibiendo
+            // recordatorios para poder dejar otra consulta o cancelar.
+            if (!$assignment->nota_dejada && $minutosEsperando >= self::MAX_ESPERA_MINUTOS) {
                 $assignment->update([
                     'status'      => Assignment::STATUS_CLOSED,
                     'disposition' => 'sin_respuesta',
