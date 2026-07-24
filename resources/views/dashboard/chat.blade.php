@@ -162,14 +162,14 @@
                     </div>
                     @elseif($msg->sender === 'asesor')
                     <div class="flex justify-end">
-                        <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
+                        <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words">
                             @include('dashboard.partials.message-content', ['msg' => $msg, 'light' => true])
                             <p class="text-xs text-blue-300 mt-1 text-right">{{ $msg->created_at->format('H:i') }}</p>
                         </div>
                     </div>
                     @else
                     <div class="flex justify-start">
-                        <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
+                        <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm whitespace-pre-wrap break-words">
                             @include('dashboard.partials.message-content', ['msg' => $msg, 'light' => false])
                             <p class="text-xs text-gray-400 mt-1">{{ $msg->created_at->format('H:i') }}</p>
                         </div>
@@ -203,12 +203,13 @@
             @elseif($assignment?->isConversationActive())
             {{-- ESTADO: sesión activa — puede escribir --}}
             <div class="border-t border-gray-100 px-4 py-3 shrink-0" id="input-area">
-                <form method="POST" action="{{ route('chat.send') }}" class="flex items-center gap-2">
+                <form method="POST" action="{{ route('chat.send') }}" class="flex items-end gap-2">
                     @csrf
                     <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
-                    <input type="text" name="mensaje" id="msg-input" placeholder="Escribe un mensaje..."
-                           autocomplete="off"
-                           class="flex-1 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <textarea name="mensaje" id="msg-input" placeholder="Escribe un mensaje... (Shift+Enter para salto de línea)"
+                              rows="1" maxlength="1000"
+                              class="flex-1 border border-gray-200 rounded-2xl px-4 py-2 text-sm resize-none leading-normal focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              style="max-height: 120px;"></textarea>
                     <button type="submit"
                             class="w-10 h-10 bg-blue-900 text-white rounded-full flex items-center justify-center hover:bg-blue-800 transition shrink-0">
                         <svg class="w-4 h-4 rotate-90" fill="currentColor" viewBox="0 0 24 24">
@@ -424,6 +425,21 @@
             setInterval(updateCountdown, 1000);
         }
 
+        // ── Input de mensaje: Enter envía, Shift+Enter hace salto de línea ────
+        const msgInput = document.getElementById('msg-input');
+        if (msgInput) {
+            msgInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    msgInput.closest('form').requestSubmit();
+                }
+            });
+            msgInput.addEventListener('input', function () {
+                msgInput.style.height = 'auto';
+                msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+            });
+        }
+
         // ── Scroll y polling de mensajes ──────────────────────────────────────
         function scrollBottom() {
             const box = document.getElementById('chat-box');
@@ -504,14 +520,14 @@
             }
             if (msg.sender === 'asesor') {
                 return `<div class="flex justify-end">
-                    <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
+                    <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words">
                         ${renderContent(msg, true)}
                         <p class="text-xs text-blue-300 mt-1 text-right">${hora}</p>
                     </div>
                 </div>`;
             }
             return `<div class="flex justify-start">
-                <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm">
+                <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm whitespace-pre-wrap break-words">
                     ${renderContent(msg, false)}
                     <p class="text-xs text-gray-400 mt-1">${hora}</p>
                 </div>
