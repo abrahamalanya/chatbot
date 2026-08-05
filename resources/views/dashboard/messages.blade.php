@@ -48,6 +48,7 @@
                     <table class="w-full text-xs">
                         <thead class="bg-gray-50 text-gray-500 uppercase tracking-wide">
                             <tr>
+                                <th class="text-left px-5 py-2">Línea</th>
                                 <th class="text-left px-5 py-2">Asesor</th>
                                 <th class="text-left px-5 py-2">Asignado</th>
                                 <th class="text-left px-5 py-2">Aceptado</th>
@@ -70,6 +71,7 @@
                                 $dc = $dispositionColors[$h->disposition] ?? 'bg-gray-100 text-gray-500';
                             @endphp
                             <tr class="hover:bg-gray-50">
+                                <td class="px-5 py-2.5 text-gray-500">{{ $h->whatsappNumber?->nombre ?? '—' }}</td>
                                 <td class="px-5 py-2.5 font-medium text-gray-800">{{ $h->advisor?->nombre ?? '—' }}</td>
                                 <td class="px-5 py-2.5 text-gray-500">{{ $h->created_at->format('d/m H:i') }}</td>
                                 <td class="px-5 py-2.5 text-gray-500">{{ $h->accepted_at?->format('d/m H:i') ?? '—' }}</td>
@@ -94,7 +96,7 @@
                                 </td>
                             </tr>
                             @empty
-                            <tr><td colspan="6" class="px-5 py-4 text-center text-gray-400">Sin historial.</td></tr>
+                            <tr><td colspan="7" class="px-5 py-4 text-center text-gray-400">Sin historial.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

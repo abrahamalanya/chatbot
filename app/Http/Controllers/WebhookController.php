@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\WhatsappNumber;
 use App\Services\ChatbotService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class WebhookController extends Controller
 {
@@ -38,8 +40,24 @@ class WebhookController extends Controller
             return response()->json(['status' => 'no message'], 200);
         }
 
-        $message = $data['entry'][0]['changes'][0]['value']['messages'][0];
+        $value          = $data['entry'][0]['changes'][0]['value'];
+        $message        = $value['messages'][0];
+        $phoneNumberId  = $value['metadata']['phone_number_id'] ?? null;
 
-        $this->chatbot->handle($message);
+        $whatsappNumber = $phoneNumberId
+            ? WhatsappNumber::where('phone_number_id', $phoneNumberId)->where('activo', true)->first()
+            : null;
+
+        if (!$whatsappNumber) {
+            Log::warning('Mensaje de WhatsApp recibido en un número no registrado', [
+                'phone_number_id'       => $phoneNumberId,
+                'display_phone_number'  => $value['metadata']['display_phone_number'] ?? null,
+                'from'                  => $message['from'] ?? null,
+            ]);
+
+            return response()->json(['status' => 'unregistered number'], 200);
+        }
+
+        $this->chatbot->handle($message, $whatsappNumber);
     }
 }

@@ -65,7 +65,12 @@
                             </span>
                             @endif
                         </div>
-                        <p class="text-xs text-gray-400">Solicitud {{ $pendiente->created_at->diffForHumans() }}</p>
+                        <p class="text-xs text-gray-400">
+                            Solicitud {{ $pendiente->created_at->diffForHumans() }}
+                            @if($pendiente->whatsappNumber)
+                                · {{ $pendiente->whatsappNumber->nombre }}
+                            @endif
+                        </p>
                     </div>
                 </div>
                 <button @click="openId = openId === {{ $pendiente->id }} ? null : {{ $pendiente->id }}"
@@ -154,6 +159,7 @@
                 <thead class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wide">
                     <tr>
                         <th class="text-left px-6 py-3">Cliente</th>
+                        <th class="text-left px-6 py-3">Línea</th>
                         <th class="text-left px-6 py-3">Asesor</th>
                         <th class="text-left px-6 py-3">Fecha</th>
                         <th class="text-center px-6 py-3">Ventana chat</th>
@@ -166,6 +172,7 @@
                     @forelse($asignados as $asignado)
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-3 font-medium text-gray-800">+{{ $asignado->cliente_telefono }}</td>
+                        <td class="px-6 py-3 text-gray-500 text-xs">{{ $asignado->whatsappNumber?->nombre ?? '—' }}</td>
                         <td class="px-6 py-3 text-gray-600">{{ $asignado->advisor?->nombre ?? '—' }}</td>
                         <td class="px-6 py-3 text-gray-400 text-xs">{{ $asignado->created_at->format('d/m/Y H:i') }}</td>
                         <td class="px-6 py-3 text-center text-xs">
@@ -222,7 +229,7 @@
                         x-transition:enter="transition ease-out duration-100"
                         x-transition:enter-start="opacity-0 -translate-y-1"
                         x-transition:enter-end="opacity-100 translate-y-0">
-                        <td colspan="7" class="px-6 pb-4">
+                        <td colspan="8" class="px-6 pb-4">
                             <form method="POST" action="{{ route('assignments.assign', $asignado) }}"
                                   class="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
                                 @csrf
@@ -261,7 +268,7 @@
                     @endif
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-8 text-center text-gray-400">No hay atenciones aún.</td>
+                        <td colspan="8" class="px-6 py-8 text-center text-gray-400">No hay atenciones aún.</td>
                     </tr>
                     @endforelse
                 </tbody>

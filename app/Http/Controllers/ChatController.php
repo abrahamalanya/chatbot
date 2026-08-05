@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Assignment;
 use App\Models\Cliente;
 use App\Models\Message;
+use App\Models\WhatsappNumber;
 use App\Services\AssignmentService;
 use App\Services\WhatsappService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
@@ -30,7 +32,7 @@ class ChatController extends Controller
             ->groupBy('cliente_telefono')
             ->pluck('id');
 
-        $latestAssignments = Assignment::whereIn('id', $latestIds)->get()->keyBy('cliente_telefono');
+        $latestAssignments = Assignment::whereIn('id', $latestIds)->with('whatsappNumber')->get()->keyBy('cliente_telefono');
 
         $unreadCounts = Message::where('sender', 'cliente')
             ->whereNull('leido_at')
@@ -74,6 +76,7 @@ class ChatController extends Controller
 
             $assignment = Assignment::where('cliente_telefono', $clienteSeleccionado)
                 ->where('advisor_id', $advisor->id)
+                ->with('whatsappNumber')
                 ->latest()
                 ->first();
 
@@ -90,7 +93,7 @@ class ChatController extends Controller
                 ]);
                 $assignment->refresh();
 
-                $this->despedirCliente($clienteSeleccionado, $advisor->id);
+                $this->despedirCliente($clienteSeleccionado, $advisor->id, $assignment->whatsapp_number_id);
             }
         }
 
@@ -186,14 +189,15 @@ class ChatController extends Controller
         }
 
         Message::create([
-            'cliente_telefono' => $request->cliente_telefono,
-            'advisor_id'       => $advisor->id,
-            'mensaje'          => $request->mensaje,
-            'sender'           => 'asesor',
-            'tipo'             => 'texto',
+            'cliente_telefono'   => $request->cliente_telefono,
+            'advisor_id'         => $advisor->id,
+            'whatsapp_number_id' => $assignment->whatsapp_number_id,
+            'mensaje'            => $request->mensaje,
+            'sender'             => 'asesor',
+            'tipo'               => 'texto',
         ]);
 
-        $this->whatsapp->send($request->cliente_telefono, $request->mensaje);
+        $this->whatsapp->send($request->cliente_telefono, $request->mensaje, $assignment->whatsappNumber->phone_number_id);
 
         return back();
     }
@@ -207,37 +211,44 @@ class ChatController extends Controller
 
         $advisor = auth()->user()->advisor;
 
-        Assignment::where('cliente_telefono', $request->cliente_telefono)
+        $assignment = Assignment::where('cliente_telefono', $request->cliente_telefono)
             ->where('advisor_id', $advisor->id)
             ->where('status', Assignment::STATUS_ASSIGNED)
             ->latest()
-            ->first()
-            ?->update([
-                'status'      => Assignment::STATUS_CLOSED,
-                'disposition' => $request->disposition,
-            ]);
+            ->first();
+
+        $assignment?->update([
+            'status'      => Assignment::STATUS_CLOSED,
+            'disposition' => $request->disposition,
+        ]);
 
         Cliente::where('cliente_telefono', $request->cliente_telefono)
             ->update(['etapa' => $request->disposition]);
 
-        $this->despedirCliente($request->cliente_telefono, $advisor->id);
+        $this->despedirCliente($request->cliente_telefono, $advisor->id, $assignment?->whatsapp_number_id);
 
         return redirect()->route('chat.index')
             ->with('success', 'Conversación cerrada correctamente.');
     }
 
-    private function despedirCliente(string $clienteTelefono, int $advisorId): void
+    private function despedirCliente(string $clienteTelefono, int $advisorId, ?int $whatsappNumberId): void
     {
+        if (!$whatsappNumberId) {
+            Log::warning('No se pudo enviar despedida: assignment sin whatsapp_number_id', ['cliente_telefono' => $clienteTelefono]);
+            return;
+        }
+
         $mensaje = config('messages.despedida');
 
         Message::create([
-            'cliente_telefono' => $clienteTelefono,
-            'advisor_id'       => $advisorId,
-            'mensaje'          => $mensaje,
-            'sender'           => 'asesor',
-            'tipo'             => 'texto',
+            'cliente_telefono'   => $clienteTelefono,
+            'advisor_id'         => $advisorId,
+            'whatsapp_number_id' => $whatsappNumberId,
+            'mensaje'            => $mensaje,
+            'sender'             => 'asesor',
+            'tipo'               => 'texto',
         ]);
 
-        $this->whatsapp->send($clienteTelefono, $mensaje);
+        $this->whatsapp->send($clienteTelefono, $mensaje, WhatsappNumber::find($whatsappNumberId)->phone_number_id);
     }
 }

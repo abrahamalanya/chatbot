@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Assignment;
 use App\Models\Message;
+use App\Models\WhatsappNumber;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class ChatbotService
 {
@@ -45,7 +47,7 @@ class ChatbotService
         $this->whatsapp   = $whatsapp;
     }
 
-    public function handle($message)
+    public function handle($message, WhatsappNumber $whatsappNumber)
     {
         $from = $message['from'];
 
@@ -54,82 +56,88 @@ class ChatbotService
             ->latest()
             ->first();
 
+        // Mantener la conversación "atada" a la línea por la que el cliente
+        // escribió por última vez, para que las respuestas salgan correctas.
+        if ($assignment && $assignment->whatsapp_number_id !== $whatsappNumber->id) {
+            $assignment->update(['whatsapp_number_id' => $whatsappNumber->id]);
+        }
+
         // Cliente en ventana de conversación activa → modo conversación directa
         if ($assignment && $assignment->isConversationActive()) {
-            $this->saveMessage($from, $assignment->advisor_id, $message);
+            $this->saveMessage($from, $assignment->advisor_id, $whatsappNumber, $message);
             return;
         }
 
         if ($message['type'] === 'text') {
             // Guardar mensaje de texto aunque esté en pending
             if ($assignment) {
-                $this->saveTextMessage($from, $assignment->advisor_id ?? null, $message['text']['body']);
+                $this->saveTextMessage($from, $assignment->advisor_id ?? null, $whatsappNumber, $message['text']['body']);
 
-                if ($this->cerrarSiEraNotaDeEspera($from, $assignment)) {
+                if ($this->cerrarSiEraNotaDeEspera($from, $whatsappNumber, $assignment)) {
                     return;
                 }
             }
-            $this->sendMenu($from);
+            $this->sendMenu($from, $whatsappNumber);
 
         } elseif (in_array($message['type'], ['image', 'document', 'location', 'video', 'audio'])) {
             // Guardar media/ubicación aunque esté en pending
             if ($assignment) {
-                $this->saveMediaMessage($from, $assignment->advisor_id ?? null, $message);
+                $this->saveMediaMessage($from, $assignment->advisor_id ?? null, $whatsappNumber, $message);
 
-                if ($this->cerrarSiEraNotaDeEspera($from, $assignment)) {
+                if ($this->cerrarSiEraNotaDeEspera($from, $whatsappNumber, $assignment)) {
                     return;
                 }
             }
-            $this->sendMenu($from);
+            $this->sendMenu($from, $whatsappNumber);
 
         } elseif ($message['type'] === 'interactive') {
             $reply = $message['interactive']['button_reply']['id'] ?? null;
             if (!$reply) return;
 
             // Guardar la opción seleccionada como historial
-            $this->saveOpcion($from, $assignment->advisor_id ?? null, $reply);
+            $this->saveOpcion($from, $assignment->advisor_id ?? null, $whatsappNumber, $reply);
 
             if ($reply === 'credito_hipotecario') {
-                $this->replyTextCredit($from, "Requisitos:\n" . config('messages.creditos.hipotecario.requisitos'));
+                $this->replyTextCredit($from, $whatsappNumber, "Requisitos:\n" . config('messages.creditos.hipotecario.requisitos'));
 
             } elseif ($reply === 'credito_vehicular') {
-                $this->replyTextCredit($from, "Requisitos:\n" . config('messages.creditos.vehicular.requisitos'));
+                $this->replyTextCredit($from, $whatsappNumber, "Requisitos:\n" . config('messages.creditos.vehicular.requisitos'));
 
             } elseif ($reply === 'credito_diario') {
-                $this->replyTextCreditDiario($from, "¿Tiene negocio?");
+                $this->replyTextCreditDiario($from, $whatsappNumber, "¿Tiene negocio?");
 
             } elseif ($reply === 'negocio_true') {
-                $this->replyTextCreditDiarioNegocio($from, "¿Qué tipo de negocio tiene?");
+                $this->replyTextCreditDiarioNegocio($from, $whatsappNumber, "¿Qué tipo de negocio tiene?");
 
             } elseif ($reply === 'negocio_false') {
-                $this->replyTextCreditDiarioTrabajador($from, "¿Qué tipo de trabajador eres?");
+                $this->replyTextCreditDiarioTrabajador($from, $whatsappNumber, "¿Qué tipo de trabajador eres?");
 
             } elseif (in_array($reply, ['abarrotes', 'venta_ropa_calzado', 'tecnologia', 'otro', 'trabajador_dependiente', 'trabajador_independiente'])) {
-                $this->replyTextCreditDiarioVivienda($from, "¿Qué tipo de vivienda tiene?");
+                $this->replyTextCreditDiarioVivienda($from, $whatsappNumber, "¿Qué tipo de vivienda tiene?");
 
             } elseif (in_array($reply, ['vivienda_propia', 'vivienda_alquilada', 'vivienda_familiar', 'vivienda_otro'])) {
-                $this->replyTextCreditDiarioPrestamo($from, "¿Cuánto necesita de préstamo?");
+                $this->replyTextCreditDiarioPrestamo($from, $whatsappNumber, "¿Cuánto necesita de préstamo?");
 
             } elseif (in_array($reply, ['prestamo_300_500', 'prestamo_500_1000', 'prestamo_1000_mas'])) {
-                $this->replyText($from, "Gracias por tu información. Un asesor de CREDIMAS evaluará tu solicitud y se comunicará contigo dentro de nuestro horario de atención.\n🕘 Horario: 8:00 am - 6:00 pm");
-                $this->assignment->requestAdvisor($from);
+                $this->replyText($from, $whatsappNumber, "Gracias por tu información. Un asesor de CREDIMAS evaluará tu solicitud y se comunicará contigo dentro de nuestro horario de atención.\n🕘 Horario: 8:00 am - 6:00 pm");
+                $this->assignment->requestAdvisor($from, $whatsappNumber);
 
             } elseif ($reply === 'asesor') {
-                $this->replyText($from, "Hemos recibido tu solicitud. Un asesor de CREDIMAS se pondrá en contacto contigo pronto. 🙏");
-                $this->assignment->requestAdvisor($from);
+                $this->replyText($from, $whatsappNumber, "Hemos recibido tu solicitud. Un asesor de CREDIMAS se pondrá en contacto contigo pronto. 🙏");
+                $this->assignment->requestAdvisor($from, $whatsappNumber);
 
             } elseif ($reply === 'menu') {
-                $this->sendMenu($from);
+                $this->sendMenu($from, $whatsappNumber);
 
             } elseif ($reply === 'salir') {
-                $this->replyText($from, config('messages.despedida'));
+                $this->replyText($from, $whatsappNumber, config('messages.despedida'));
 
             } elseif ($reply === 'espera_seguir') {
-                $this->replyText($from, 'Perfecto, seguimos buscando un asesor disponible para ti. Gracias por tu paciencia. 🙏');
+                $this->replyText($from, $whatsappNumber, 'Perfecto, seguimos buscando un asesor disponible para ti. Gracias por tu paciencia. 🙏');
                 $assignment?->update(['warning_sent_at' => now()]);
 
             } elseif ($reply === 'espera_mensaje') {
-                $this->replyText($from, 'Cuéntanos en un solo mensaje qué necesitas y un asesor te escribirá apenas esté disponible.');
+                $this->replyText($from, $whatsappNumber, 'Cuéntanos en un solo mensaje qué necesitas y un asesor te escribirá apenas esté disponible.');
                 $assignment?->update(['esperando_nota' => true]);
 
             } elseif ($reply === 'espera_cancelar') {
@@ -137,14 +145,14 @@ class ChatbotService
                     'status'      => Assignment::STATUS_CLOSED,
                     'disposition' => 'sin_respuesta',
                 ]);
-                $this->replyText($from, 'De acuerdo, hemos cancelado tu solicitud. Cuando quieras puedes volver a escribirnos. 🙏');
+                $this->replyText($from, $whatsappNumber, 'De acuerdo, hemos cancelado tu solicitud. Cuando quieras puedes volver a escribirnos. 🙏');
             }
         }
     }
 
     // Cliente eligió "dejar mensaje" mientras esperaba asesor: el mensaje que
     // acaba de guardarse (texto, imagen, documento, etc.) es su consulta.
-    private function cerrarSiEraNotaDeEspera(string $from, Assignment $assignment): bool
+    private function cerrarSiEraNotaDeEspera(string $from, WhatsappNumber $whatsappNumber, Assignment $assignment): bool
     {
         if ($assignment->status !== Assignment::STATUS_PENDING || !$assignment->esperando_nota) {
             return false;
@@ -158,64 +166,67 @@ class ChatbotService
             'warning_sent_at' => now(),
         ]);
 
-        $this->replyText($from, '¡Gracias! Hemos registrado tu consulta. Un asesor de CREDIMAS te escribirá en cuanto esté disponible.');
+        $this->replyText($from, $whatsappNumber, '¡Gracias! Hemos registrado tu consulta. Un asesor de CREDIMAS te escribirá en cuanto esté disponible.');
 
         return true;
     }
 
     // ── Helpers para guardar mensajes ──────────────────────────────────────
 
-    private function saveMessage(string $from, ?int $advisorId, array $message): void
+    private function saveMessage(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, array $message): void
     {
         if ($message['type'] === 'text') {
-            $this->saveTextMessage($from, $advisorId, $message['text']['body']);
+            $this->saveTextMessage($from, $advisorId, $whatsappNumber, $message['text']['body']);
         } elseif ($message['type'] === 'interactive') {
             $reply = $message['interactive']['button_reply']['id'] ?? null;
             if ($reply) {
-                $this->saveOpcion($from, $advisorId, $reply);
+                $this->saveOpcion($from, $advisorId, $whatsappNumber, $reply);
             }
         } elseif (in_array($message['type'], ['image', 'document', 'location', 'video', 'audio'])) {
-            $this->saveMediaMessage($from, $advisorId, $message);
+            $this->saveMediaMessage($from, $advisorId, $whatsappNumber, $message);
         }
     }
 
-    private function saveTextMessage(string $from, ?int $advisorId, string $texto): void
+    private function saveTextMessage(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, string $texto): void
     {
         Message::create([
-            'cliente_telefono' => $from,
-            'advisor_id'       => $advisorId,
-            'mensaje'          => $texto,
-            'sender'           => 'cliente',
-            'tipo'             => 'texto',
+            'cliente_telefono'   => $from,
+            'advisor_id'         => $advisorId,
+            'whatsapp_number_id' => $whatsappNumber->id,
+            'mensaje'            => $texto,
+            'sender'             => 'cliente',
+            'tipo'               => 'texto',
         ]);
     }
 
-    private function saveOpcion(string $from, ?int $advisorId, string $replyId): void
+    private function saveOpcion(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, string $replyId): void
     {
         $label = self::OPCIONES_LABELS[$replyId] ?? $replyId;
 
         Message::create([
-            'cliente_telefono' => $from,
-            'advisor_id'       => $advisorId,
-            'mensaje'          => $label,
-            'sender'           => 'cliente',
-            'tipo'             => 'opcion',
+            'cliente_telefono'   => $from,
+            'advisor_id'         => $advisorId,
+            'whatsapp_number_id' => $whatsappNumber->id,
+            'mensaje'            => $label,
+            'sender'             => 'cliente',
+            'tipo'               => 'opcion',
         ]);
     }
 
-    private function saveMediaMessage(string $from, ?int $advisorId, array $message): void
+    private function saveMediaMessage(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, array $message): void
     {
         if ($message['type'] === 'location') {
             $location = $message['location'];
 
             Message::create([
-                'cliente_telefono' => $from,
-                'advisor_id'       => $advisorId,
-                'mensaje'          => $location['name'] ?? $location['address'] ?? 'Ubicación compartida',
-                'sender'           => 'cliente',
-                'tipo'             => 'ubicacion',
-                'latitude'         => $location['latitude'],
-                'longitude'        => $location['longitude'],
+                'cliente_telefono'   => $from,
+                'advisor_id'         => $advisorId,
+                'whatsapp_number_id' => $whatsappNumber->id,
+                'mensaje'            => $location['name'] ?? $location['address'] ?? 'Ubicación compartida',
+                'sender'             => 'cliente',
+                'tipo'               => 'ubicacion',
+                'latitude'           => $location['latitude'],
+                'longitude'          => $location['longitude'],
             ]);
             return;
         }
@@ -233,26 +244,41 @@ class ChatbotService
         $media = $this->whatsapp->downloadMedia($mediaId);
 
         Message::create([
-            'cliente_telefono' => $from,
-            'advisor_id'       => $advisorId,
-            'mensaje'          => $message[$type]['caption'] ?? $etiquetas[$type],
-            'sender'           => 'cliente',
-            'tipo'             => $tipos[$type],
-            'media_path'       => $media['path'] ?? null,
-            'media_mime_type'  => $media['mime_type'] ?? null,
-            'media_filename'   => $message[$type]['filename'] ?? null,
+            'cliente_telefono'   => $from,
+            'advisor_id'         => $advisorId,
+            'whatsapp_number_id' => $whatsappNumber->id,
+            'mensaje'            => $message[$type]['caption'] ?? $etiquetas[$type],
+            'sender'             => 'cliente',
+            'tipo'               => $tipos[$type],
+            'media_path'         => $media['path'] ?? null,
+            'media_mime_type'    => $media['mime_type'] ?? null,
+            'media_filename'     => $message[$type]['filename'] ?? null,
         ]);
     }
 
     // ── Mensajes de WhatsApp ───────────────────────────────────────────────
 
-    public function sendMenu($to)
+    // Todas las llamadas a la Graph API comparten el mismo token (una sola
+    // app/WABA de Meta) y solo cambian de phone_number_id según la línea.
+    private function sendPayload(WhatsappNumber $whatsappNumber, array $payload): void
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
+        $token = config('services.whatsapp.token');
+        $url   = "https://graph.facebook.com/v25.0/{$whatsappNumber->phone_number_id}/messages";
 
-        Http::withToken($token)->post($url, [
+        $response = Http::withToken($token)->post($url, $payload);
+
+        if (!$response->successful()) {
+            Log::warning('Fallo al enviar mensaje de WhatsApp', [
+                'whatsapp_number_id' => $whatsappNumber->id,
+                'to'                 => $payload['to'] ?? null,
+                'response'           => $response->json(),
+            ]);
+        }
+    }
+
+    public function sendMenu($to, WhatsappNumber $whatsappNumber)
+    {
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'                => $to,
             'type'              => 'interactive',
@@ -270,13 +296,9 @@ class ChatbotService
         ]);
     }
 
-    public function sendEsperaOpciones($to)
+    public function sendEsperaOpciones($to, WhatsappNumber $whatsappNumber)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
-
-        Http::withToken($token)->post($url, [
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'          => $to,
             'type'        => 'interactive',
@@ -294,13 +316,9 @@ class ChatbotService
         ]);
     }
 
-    public function replyText($to, $message)
+    public function replyText($to, WhatsappNumber $whatsappNumber, $message)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
-
-        Http::withToken($token)->post($url, [
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'   => $to,
             'type' => 'text',
@@ -308,13 +326,9 @@ class ChatbotService
         ]);
     }
 
-    public function replyTextCredit($to, $message)
+    public function replyTextCredit($to, WhatsappNumber $whatsappNumber, $message)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
-
-        Http::withToken($token)->post($url, [
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'          => $to,
             'type'        => 'interactive',
@@ -332,13 +346,9 @@ class ChatbotService
         ]);
     }
 
-    public function replyTextCreditDiario($to, $message)
+    public function replyTextCreditDiario($to, WhatsappNumber $whatsappNumber, $message)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
-
-        Http::withToken($token)->post($url, [
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'          => $to,
             'type'        => 'interactive',
@@ -355,13 +365,9 @@ class ChatbotService
         ]);
     }
 
-    public function replyTextCreditDiarioNegocio($to, $message)
+    public function replyTextCreditDiarioNegocio($to, WhatsappNumber $whatsappNumber, $message)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
-
-        Http::withToken($token)->post($url, [
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'          => $to,
             'type'        => 'interactive',
@@ -379,13 +385,9 @@ class ChatbotService
         ]);
     }
 
-    public function replyTextCreditDiarioTrabajador($to, $message)
+    public function replyTextCreditDiarioTrabajador($to, WhatsappNumber $whatsappNumber, $message)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
-
-        Http::withToken($token)->post($url, [
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'          => $to,
             'type'        => 'interactive',
@@ -402,13 +404,9 @@ class ChatbotService
         ]);
     }
 
-    public function replyTextCreditDiarioVivienda($to, $message)
+    public function replyTextCreditDiarioVivienda($to, WhatsappNumber $whatsappNumber, $message)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
-
-        Http::withToken($token)->post($url, [
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'          => $to,
             'type'        => 'interactive',
@@ -426,13 +424,9 @@ class ChatbotService
         ]);
     }
 
-    public function replyTextCreditDiarioPrestamo($to, $message)
+    public function replyTextCreditDiarioPrestamo($to, WhatsappNumber $whatsappNumber, $message)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
-
-        Http::withToken($token)->post($url, [
+        $this->sendPayload($whatsappNumber, [
             'messaging_product' => 'whatsapp',
             'to'          => $to,
             'type'        => 'interactive',

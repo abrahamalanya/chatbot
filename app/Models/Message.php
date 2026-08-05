@@ -10,6 +10,7 @@ class Message extends Model
     protected $fillable = [
         'cliente_telefono',
         'advisor_id',
+        'whatsapp_number_id',
         'mensaje',
         'sender',
         'tipo',
@@ -29,6 +30,11 @@ class Message extends Model
     public function advisor()
     {
         return $this->belongsTo(Advisor::class);
+    }
+
+    public function whatsappNumber()
+    {
+        return $this->belongsTo(WhatsappNumber::class);
     }
 
     public function scopeOpciones($query)
