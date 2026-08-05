@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Advisor;
 use App\Models\Assignment;
+use App\Models\WhatsappNumber;
 
 class AssignmentService
 {
@@ -14,7 +15,7 @@ class AssignmentService
         $this->whatsapp = $whatsapp;
     }
 
-    public function requestAdvisor(string $phoneClient): Assignment
+    public function requestAdvisor(string $phoneClient, WhatsappNumber $whatsappNumber): Assignment
     {
         $existing = Assignment::where('cliente_telefono', $phoneClient)
             ->where(function ($q) {
@@ -35,9 +36,10 @@ class AssignmentService
         }
 
         return Assignment::create([
-            'cliente_telefono' => $phoneClient,
-            'advisor_id'       => null,
-            'status'           => Assignment::STATUS_PENDING,
+            'cliente_telefono'   => $phoneClient,
+            'advisor_id'         => null,
+            'whatsapp_number_id' => $whatsappNumber->id,
+            'status'             => Assignment::STATUS_PENDING,
         ]);
     }
 
@@ -54,12 +56,16 @@ class AssignmentService
 
         $this->whatsapp->send(
             $advisor->telefono,
-            "Tienes un nuevo cliente asignado: {$assignment->cliente_telefono}\nIngresa al panel para aceptar y comenzar la atención."
+            "Tienes un nuevo cliente asignado: {$assignment->cliente_telefono}\nIngresa al panel para aceptar y comenzar la atención.",
+            $assignment->whatsappNumber->phone_number_id
         );
 
         $this->whatsapp->sendTemplate(
             $assignment->cliente_telefono,
-            config('services.whatsapp.templates.asesor_asignado')
+            $assignment->whatsappNumber->templateAsesorAsignado(),
+            [],
+            'es',
+            $assignment->whatsappNumber->phone_number_id
         );
 
         return $assignment->fresh();
@@ -74,7 +80,10 @@ class AssignmentService
 
         $this->whatsapp->sendTemplate(
             $assignment->cliente_telefono,
-            config('services.whatsapp.templates.asesor_acepto')
+            $assignment->whatsappNumber->templateAsesorAcepto(),
+            [],
+            'es',
+            $assignment->whatsappNumber->phone_number_id
         );
 
         return $assignment->fresh();

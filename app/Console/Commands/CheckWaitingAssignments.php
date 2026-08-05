@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Assignment;
 use App\Services\ChatbotService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class CheckWaitingAssignments extends Command
 {
@@ -18,9 +19,14 @@ class CheckWaitingAssignments extends Command
 
     public function handle(ChatbotService $chatbot): int
     {
-        $pendientes = Assignment::where('status', Assignment::STATUS_PENDING)->get();
+        $pendientes = Assignment::with('whatsappNumber')->where('status', Assignment::STATUS_PENDING)->get();
 
         foreach ($pendientes as $assignment) {
+            if (!$assignment->whatsappNumber) {
+                Log::warning('Assignment pendiente sin whatsapp_number_id, se omite', ['assignment_id' => $assignment->id]);
+                continue;
+            }
+
             $minutosEsperando = $assignment->created_at->diffInMinutes(now());
 
             // Ya dejó su consulta por escrito: no se cierra automáticamente
@@ -34,6 +40,7 @@ class CheckWaitingAssignments extends Command
 
                 $chatbot->replyText(
                     $assignment->cliente_telefono,
+                    $assignment->whatsappNumber,
                     'Lo sentimos, no pudimos comunicarte con un asesor en este momento. Puedes volver a escribirnos cuando gustes. 🙏'
                 );
 
@@ -45,7 +52,7 @@ class CheckWaitingAssignments extends Command
                 : $minutosEsperando >= self::PRIMER_AVISO_MINUTOS;
 
             if ($debeAvisar) {
-                $chatbot->sendEsperaOpciones($assignment->cliente_telefono);
+                $chatbot->sendEsperaOpciones($assignment->cliente_telefono, $assignment->whatsappNumber);
 
                 $assignment->update([
                     'warning_sent_at' => now(),

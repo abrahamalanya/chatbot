@@ -40,6 +40,9 @@
                             @else
                                 WhatsApp
                             @endif
+                            @if($latest?->whatsappNumber)
+                                · {{ $latest->whatsappNumber->nombre }}
+                            @endif
                         </p>
                         @if($latest?->status === 'closed' && $latest?->disposition)
                         <p class="text-xs text-gray-400 truncate">
@@ -72,8 +75,13 @@
                     {{ strtoupper(substr($clienteSeleccionado, -2)) }}
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-gray-800">
+                    <p class="text-sm font-semibold text-gray-800 flex items-center gap-2">
                         {{ $clienteRegistro?->nombre ?: '+' . $clienteSeleccionado }}
+                        @if($assignment?->whatsappNumber)
+                        <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-medium rounded-full uppercase tracking-wide">
+                            {{ $assignment->whatsappNumber->nombre }}
+                        </span>
+                        @endif
                     </p>
                     @if($assignment?->status === 'assigned' && !$assignment?->accepted_at)
                         <p class="text-xs text-orange-500">Asignado — pendiente de aceptar</p>

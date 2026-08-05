@@ -22,6 +22,7 @@ class Assignment extends Model
     protected $fillable = [
         'cliente_telefono',
         'advisor_id',
+        'whatsapp_number_id',
         'accepted_at',
         'status',
         'conversation_duration',
@@ -57,6 +58,11 @@ class Assignment extends Model
     public function advisor()
     {
         return $this->belongsTo(Advisor::class);
+    }
+
+    public function whatsappNumber()
+    {
+        return $this->belongsTo(WhatsappNumber::class);
     }
 
     public function scopePending($query)

@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WebhookController;
+use App\Http\Controllers\WhatsappNumberController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas del webhook de WhatsApp
@@ -34,6 +35,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/mensajes', [DashboardController::class, 'messages'])->name('admin.messages');
         Route::resource('/advisors', AdvisorController::class)->except(['show']);
         Route::resource('/users', UserController::class)->except(['show']);
+        Route::resource('/whatsapp-numbers', WhatsappNumberController::class)->except(['show']);
     });
 
     // Asesor y Supervisor: chat con clientes

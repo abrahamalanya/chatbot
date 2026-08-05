@@ -26,6 +26,7 @@ class DashboardController extends Controller
             ->unique();
 
         $pendientes = Assignment::pending()
+            ->with('whatsappNumber')
             ->latest()
             ->get()
             ->map(function ($p) use ($telefonosConHistorial) {
@@ -39,7 +40,7 @@ class DashboardController extends Controller
         $filtroDisposition = $request->input('disposition');
 
         $historialQuery = Assignment::whereIn('status', [Assignment::STATUS_ASSIGNED, Assignment::STATUS_CLOSED])
-            ->with('advisor')
+            ->with(['advisor', 'whatsappNumber'])
             ->latest();
 
         if ($filtroDisposition) {
@@ -81,7 +82,7 @@ class DashboardController extends Controller
                 ->get();
 
             $historial = Assignment::where('cliente_telefono', $clienteSeleccionado)
-                ->with('advisor')
+                ->with(['advisor', 'whatsappNumber'])
                 ->latest()
                 ->get();
         }

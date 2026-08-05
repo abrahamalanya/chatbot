@@ -16,11 +16,10 @@ class WhatsappService
         //
     }
 
-    public function send(string $to, string $message)
+    public function send(string $to, string $message, string $phoneNumberId)
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
+        $token = config('services.whatsapp.token');
+        $url   = "https://graph.facebook.com/v25.0/{$phoneNumberId}/messages";
 
         $data = [
             'messaging_product' => 'whatsapp',
@@ -39,12 +38,12 @@ class WhatsappService
      * @param string   $templateName Nombre exacto de la plantilla en Meta
      * @param array    $bodyParams   Variables {{1}}, {{2}}... del cuerpo (en orden)
      * @param string   $language     Código de idioma (es, es_MX, en_US, etc.)
+     * @param string   $phoneNumberId Línea de WhatsApp desde la que se envía
      */
-    public function sendTemplate(string $to, string $templateName, array $bodyParams = [], string $language = 'es'): void
+    public function sendTemplate(string $to, string $templateName, array $bodyParams, string $language, string $phoneNumberId): void
     {
-        $token           = config('services.whatsapp.token');
-        $phone_number_id = config('services.whatsapp.phone_number_id');
-        $url             = "https://graph.facebook.com/v25.0/{$phone_number_id}/messages";
+        $token = config('services.whatsapp.token');
+        $url   = "https://graph.facebook.com/v25.0/{$phoneNumberId}/messages";
 
         $components = [];
         if (!empty($bodyParams)) {
