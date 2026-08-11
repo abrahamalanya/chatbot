@@ -51,11 +51,19 @@ class ChatController extends Controller
             ->orderByDesc('last_activity')
             ->get()
             ->map(function ($c) use ($latestAssignments, $unreadCounts, $nombresRegistrados) {
-                $c->latest        = $latestAssignments[$c->cliente_telefono] ?? null;
-                $c->unread_count  = $unreadCounts[$c->cliente_telefono] ?? 0;
-                $c->nombre        = $nombresRegistrados[$c->cliente_telefono] ?? null;
+                $c->latest            = $latestAssignments[$c->cliente_telefono] ?? null;
+                $c->unread_count      = $unreadCounts[$c->cliente_telefono] ?? 0;
+                $c->nombre            = $nombresRegistrados[$c->cliente_telefono] ?? null;
+                $c->pendiente_aceptar = $c->latest?->status === Assignment::STATUS_ASSIGNED && !$c->latest?->accepted_at;
                 return $c;
-            });
+            })
+            // Los clientes recién asignados (nuevos o recurrentes) que el
+            // asesor aún no acepta van primero, sin importar su última actividad.
+            ->sortBy([
+                ['pendiente_aceptar', 'desc'],
+                ['last_activity', 'desc'],
+            ])
+            ->values();
 
         $clienteSeleccionado = $request->cliente;
         $mensajes            = [];

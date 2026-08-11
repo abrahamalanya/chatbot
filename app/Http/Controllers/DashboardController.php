@@ -100,8 +100,18 @@ class DashboardController extends Controller
         $advisor   = Advisor::findOrFail($request->advisor_id);
         $duration  = (int) $request->input('duration', 15);
 
+        if ($assignment->advisor_id === $advisor->id) {
+            return back()->with('error', "{$advisor->nombre} ya tiene asignado a este cliente.");
+        }
+
+        $esReasignacion = (bool) $assignment->advisor_id;
+
         app(AssignmentService::class)->assignAdvisor($assignment, $advisor, $duration);
 
-        return redirect()->route('dashboard')->with('success', "Cliente {$assignment->cliente_telefono} asignado a {$advisor->nombre} ({$duration} min).");
+        $mensaje = $esReasignacion
+            ? "Cliente {$assignment->cliente_telefono} reasignado a {$advisor->nombre} ({$duration} min)."
+            : "Cliente {$assignment->cliente_telefono} asignado a {$advisor->nombre} ({$duration} min).";
+
+        return redirect()->route('dashboard')->with('success', $mensaje);
     }
 }
