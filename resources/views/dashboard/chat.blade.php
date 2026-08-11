@@ -9,7 +9,7 @@
                 <p class="text-sm font-semibold text-gray-700">Mis clientes</p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ $clientes->count() }} contactos</p>
             </div>
-            <div class="flex-1 overflow-y-auto divide-y divide-gray-100">
+            <div id="client-list" class="flex-1 overflow-y-auto divide-y divide-gray-100">
                 @forelse($clientes as $cliente)
                 @php $latest = $cliente->latest; @endphp
                 <a href="{{ route('chat.index', ['cliente' => $cliente->cliente_telefono]) }}"
@@ -389,6 +389,22 @@
     <script>
         const clienteTelefono = @json($clienteSeleccionado);
         let renderedIds = @json(collect($mensajes)->pluck('id'));
+
+        // ── Mantener la posición de scroll de la lista de clientes ────────────
+        // Cada clic en un cliente recarga la página completa, así que la
+        // posición se guarda antes de navegar y se restaura al cargar.
+        const clientList = document.getElementById('client-list');
+        if (clientList) {
+            const savedScroll = sessionStorage.getItem('chatClientListScroll');
+            if (savedScroll !== null) {
+                clientList.scrollTop = parseInt(savedScroll, 10);
+            }
+            clientList.addEventListener('click', function (e) {
+                if (e.target.closest('a')) {
+                    sessionStorage.setItem('chatClientListScroll', clientList.scrollTop);
+                }
+            });
+        }
 
         // ── Countdown ─────────────────────────────────────────────────────────
         const badge = document.getElementById('countdown-badge');

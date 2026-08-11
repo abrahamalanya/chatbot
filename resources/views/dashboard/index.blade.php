@@ -7,6 +7,11 @@
         {{ session('success') }}
     </div>
     @endif
+    @if(session('error'))
+    <div class="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+        {{ session('error') }}
+    </div>
+    @endif
 
     {{-- Estadísticas --}}
     <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
@@ -213,10 +218,10 @@
                             @endif
                         </td>
                         <td class="px-6 py-3 text-right">
-                            @if(!$asignado->advisor_id)
+                            @if(!$asignado->advisor_id || $asignado->status === 'assigned')
                             <button @click="openHistId = openHistId === {{ $asignado->id }} ? null : {{ $asignado->id }}"
-                                    class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition whitespace-nowrap">
-                                Asignar asesor
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 {{ $asignado->advisor_id ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' : 'bg-blue-900 text-white hover:bg-blue-800' }} text-xs font-medium rounded-lg transition whitespace-nowrap">
+                                {{ $asignado->advisor_id ? 'Reasignar asesor' : 'Asignar asesor' }}
                                 <svg class="w-3 h-3 transition-transform" :class="openHistId === {{ $asignado->id }} ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
                                 </svg>
@@ -224,21 +229,30 @@
                             @endif
                         </td>
                     </tr>
-                    @if(!$asignado->advisor_id)
+                    @if(!$asignado->advisor_id || $asignado->status === 'assigned')
                     <tr x-show="openHistId === {{ $asignado->id }}"
                         x-transition:enter="transition ease-out duration-100"
                         x-transition:enter-start="opacity-0 -translate-y-1"
                         x-transition:enter-end="opacity-100 translate-y-0">
                         <td colspan="8" class="px-6 pb-4">
                             <form method="POST" action="{{ route('assignments.assign', $asignado) }}"
-                                  class="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+                                  class="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3"
+                                  @if($asignado->advisor_id) onsubmit="return confirm('Esto quita a {{ $asignado->advisor?->nombre }} de la conversación y reinicia el tiempo de espera con el nuevo asesor. ¿Continuar?')" @endif>
                                 @csrf
+                                @if($asignado->advisor_id)
+                                <p class="text-xs text-orange-600">
+                                    Actualmente asignado a <strong>{{ $asignado->advisor?->nombre }}</strong>. Reasignar reinicia la aceptación y le avisa al cliente que tiene un nuevo asesor.
+                                </p>
+                                @endif
                                 <div class="flex items-center gap-3">
                                     <select name="advisor_id"
                                             class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                         <option value="">Selecciona un asesor...</option>
                                         @foreach($asesores as $asesor)
-                                            <option value="{{ $asesor->id }}">{{ $asesor->nombre }} — {{ $asesor->assignments()->assigned()->count() }} clientes activos</option>
+                                            <option value="{{ $asesor->id }}" {{ $asignado->advisor_id === $asesor->id ? 'disabled' : '' }}>
+                                                {{ $asesor->nombre }} — {{ $asesor->assignments()->assigned()->count() }} clientes activos
+                                                {{ $asignado->advisor_id === $asesor->id ? '(actual)' : '' }}
+                                            </option>
                                         @endforeach
                                     </select>
                                     <div class="flex items-center gap-1.5 shrink-0">
@@ -255,7 +269,7 @@
                                 <div class="flex items-center gap-2">
                                     <button type="submit"
                                             class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition">
-                                        Confirmar asignación
+                                        {{ $asignado->advisor_id ? 'Confirmar reasignación' : 'Confirmar asignación' }}
                                     </button>
                                     <button type="button" @click="openHistId = null"
                                             class="px-3 py-2 text-gray-500 hover:text-gray-700 text-sm">
