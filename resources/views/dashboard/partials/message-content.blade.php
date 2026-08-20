@@ -46,4 +46,4 @@
         <span>{{ $msg->mensaje }}</span>
     </a>
 
-@else{{ trim($msg->mensaje) }}@endif
+@else<p class="leading-snug">{{ trim($msg->mensaje) }}</p>@endif
