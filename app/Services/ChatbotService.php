@@ -49,6 +49,14 @@ class ChatbotService
 
     public function handle($message, WhatsappNumber $whatsappNumber)
     {
+        // Meta reintenta el webhook si la respuesta tarda o falla; sin este
+        // chequeo se duplicarían asignaciones, avisos al asesor y templates.
+        $wamid = $message['id'] ?? null;
+
+        if ($wamid && Message::where('wamid', $wamid)->exists()) {
+            return;
+        }
+
         $from = $message['from'];
 
         $assignment = Assignment::where('cliente_telefono', $from)
@@ -69,33 +77,24 @@ class ChatbotService
         }
 
         if ($message['type'] === 'text') {
-            // Guardar mensaje de texto aunque esté en pending
-            if ($assignment) {
-                $this->saveTextMessage($from, $assignment->advisor_id ?? null, $whatsappNumber, $message['text']['body']);
+            // Guardar el mensaje siempre (incluso el primer contacto, sin
+            // assignment todavía) para que el asesor vea el historial completo.
+            $this->saveTextMessage($from, $assignment?->advisor_id, $whatsappNumber, $message['text']['body'], $wamid);
 
-                if ($this->cerrarSiEraNotaDeEspera($from, $whatsappNumber, $assignment)) {
-                    return;
-                }
-            }
-            $this->sendMenu($from, $whatsappNumber);
+            $this->responderSinConversacionActiva($from, $whatsappNumber, $assignment);
 
         } elseif (in_array($message['type'], ['image', 'document', 'location', 'video', 'audio'])) {
-            // Guardar media/ubicación aunque esté en pending
-            if ($assignment) {
-                $this->saveMediaMessage($from, $assignment->advisor_id ?? null, $whatsappNumber, $message);
+            // Guardar media/ubicación siempre, mismo motivo que el texto arriba.
+            $this->saveMediaMessage($from, $assignment?->advisor_id, $whatsappNumber, $message);
 
-                if ($this->cerrarSiEraNotaDeEspera($from, $whatsappNumber, $assignment)) {
-                    return;
-                }
-            }
-            $this->sendMenu($from, $whatsappNumber);
+            $this->responderSinConversacionActiva($from, $whatsappNumber, $assignment);
 
         } elseif ($message['type'] === 'interactive') {
             $reply = $message['interactive']['button_reply']['id'] ?? null;
             if (!$reply) return;
 
             // Guardar la opción seleccionada como historial
-            $this->saveOpcion($from, $assignment->advisor_id ?? null, $whatsappNumber, $reply);
+            $this->saveOpcion($from, $assignment?->advisor_id, $whatsappNumber, $reply, $wamid);
 
             if ($reply === 'credito_hipotecario') {
                 $this->replyTextCredit($from, $whatsappNumber, "Requisitos:\n" . config('messages.creditos.hipotecario.requisitos'));
@@ -150,6 +149,51 @@ class ChatbotService
         }
     }
 
+    // Cliente sin ventana de conversación activa que escribe texto/media:
+    // si está en cola esperando asesor no debe volver a ver el menú
+    // principal (se re-solicitaría un asesor sin necesidad), así que se le
+    // recuerdan sus opciones de espera. Si no está en cola, es un cliente
+    // nuevo o cerrado y le corresponde el menú normal.
+    private function responderSinConversacionActiva(string $from, WhatsappNumber $whatsappNumber, ?Assignment $assignment): void
+    {
+        if ($assignment) {
+            if ($this->cerrarSiEraNotaDeEspera($from, $whatsappNumber, $assignment)) {
+                return;
+            }
+
+            if ($assignment->status === Assignment::STATUS_PENDING) {
+                $this->avisarClienteEnEspera($assignment);
+                return;
+            }
+        }
+
+        $this->sendMenu($from, $whatsappNumber);
+    }
+
+    // Repite los botones de espera (SEGUIR ESPERANDO / DEJAR CONSULTA /
+    // CANCELAR) en vez de floodear al cliente si escribe varias veces
+    // seguidas — se reusa warning_sent_at, el mismo campo que ya usa el
+    // recordatorio programado (assignments:check-waiting), para que ambos
+    // caminos no dupliquen avisos entre sí.
+    private const ESPERA_REENVIO_MINUTOS = 2;
+
+    private function avisarClienteEnEspera(Assignment $assignment): void
+    {
+        $avisadoRecientemente = $assignment->warning_sent_at
+            && $assignment->warning_sent_at->diffInMinutes(now()) < self::ESPERA_REENVIO_MINUTOS;
+
+        if ($avisadoRecientemente) {
+            return;
+        }
+
+        $this->sendEsperaOpciones($assignment->cliente_telefono, $assignment->whatsappNumber);
+
+        $assignment->update([
+            'warning_sent_at' => now(),
+            'warning_count'   => $assignment->warning_count + 1,
+        ]);
+    }
+
     // Cliente eligió "dejar mensaje" mientras esperaba asesor: el mensaje que
     // acaba de guardarse (texto, imagen, documento, etc.) es su consulta.
     private function cerrarSiEraNotaDeEspera(string $from, WhatsappNumber $whatsappNumber, Assignment $assignment): bool
@@ -175,21 +219,24 @@ class ChatbotService
 
     private function saveMessage(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, array $message): void
     {
+        $wamid = $message['id'] ?? null;
+
         if ($message['type'] === 'text') {
-            $this->saveTextMessage($from, $advisorId, $whatsappNumber, $message['text']['body']);
+            $this->saveTextMessage($from, $advisorId, $whatsappNumber, $message['text']['body'], $wamid);
         } elseif ($message['type'] === 'interactive') {
             $reply = $message['interactive']['button_reply']['id'] ?? null;
             if ($reply) {
-                $this->saveOpcion($from, $advisorId, $whatsappNumber, $reply);
+                $this->saveOpcion($from, $advisorId, $whatsappNumber, $reply, $wamid);
             }
         } elseif (in_array($message['type'], ['image', 'document', 'location', 'video', 'audio'])) {
             $this->saveMediaMessage($from, $advisorId, $whatsappNumber, $message);
         }
     }
 
-    private function saveTextMessage(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, string $texto): void
+    private function saveTextMessage(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, string $texto, ?string $wamid = null): void
     {
         Message::create([
+            'wamid'              => $wamid,
             'cliente_telefono'   => $from,
             'advisor_id'         => $advisorId,
             'whatsapp_number_id' => $whatsappNumber->id,
@@ -199,11 +246,12 @@ class ChatbotService
         ]);
     }
 
-    private function saveOpcion(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, string $replyId): void
+    private function saveOpcion(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, string $replyId, ?string $wamid = null): void
     {
         $label = self::OPCIONES_LABELS[$replyId] ?? $replyId;
 
         Message::create([
+            'wamid'              => $wamid,
             'cliente_telefono'   => $from,
             'advisor_id'         => $advisorId,
             'whatsapp_number_id' => $whatsappNumber->id,
@@ -215,10 +263,13 @@ class ChatbotService
 
     private function saveMediaMessage(string $from, ?int $advisorId, WhatsappNumber $whatsappNumber, array $message): void
     {
+        $wamid = $message['id'] ?? null;
+
         if ($message['type'] === 'location') {
             $location = $message['location'];
 
             Message::create([
+                'wamid'              => $wamid,
                 'cliente_telefono'   => $from,
                 'advisor_id'         => $advisorId,
                 'whatsapp_number_id' => $whatsappNumber->id,
@@ -244,6 +295,7 @@ class ChatbotService
         $media = $this->whatsapp->downloadMedia($mediaId);
 
         Message::create([
+            'wamid'              => $wamid,
             'cliente_telefono'   => $from,
             'advisor_id'         => $advisorId,
             'whatsapp_number_id' => $whatsappNumber->id,

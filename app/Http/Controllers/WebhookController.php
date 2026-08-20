@@ -34,15 +34,35 @@ class WebhookController extends Controller
 
     public function receive(Request $request)
     {
-        $data = $request->all();
+        if (!$this->hasValidSignature($request)) {
+            Log::warning('Webhook de WhatsApp con firma inválida', ['ip' => $request->ip()]);
 
-        if (!isset($data['entry'][0]['changes'][0]['value']['messages'][0])) {
-            return response()->json(['status' => 'no message'], 200);
+            return response('Forbidden', 403);
         }
 
-        $value          = $data['entry'][0]['changes'][0]['value'];
-        $message        = $value['messages'][0];
-        $phoneNumberId  = $value['metadata']['phone_number_id'] ?? null;
+        $data = $request->all();
+
+        // Meta puede agrupar varios entry/changes/messages en un solo POST
+        // (por ejemplo, mensaje + status casi simultáneos); hay que recorrerlos
+        // todos en vez de leer solo el primero.
+        foreach ($data['entry'] ?? [] as $entry) {
+            foreach ($entry['changes'] ?? [] as $change) {
+                $this->processChange($change['value'] ?? []);
+            }
+        }
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    protected function processChange(array $value): void
+    {
+        $messages = $value['messages'] ?? [];
+
+        if (empty($messages)) {
+            return;
+        }
+
+        $phoneNumberId = $value['metadata']['phone_number_id'] ?? null;
 
         $whatsappNumber = $phoneNumberId
             ? WhatsappNumber::where('phone_number_id', $phoneNumberId)->where('activo', true)->first()
@@ -50,14 +70,40 @@ class WebhookController extends Controller
 
         if (!$whatsappNumber) {
             Log::warning('Mensaje de WhatsApp recibido en un número no registrado', [
-                'phone_number_id'       => $phoneNumberId,
-                'display_phone_number'  => $value['metadata']['display_phone_number'] ?? null,
-                'from'                  => $message['from'] ?? null,
+                'phone_number_id'      => $phoneNumberId,
+                'display_phone_number' => $value['metadata']['display_phone_number'] ?? null,
             ]);
 
-            return response()->json(['status' => 'unregistered number'], 200);
+            return;
         }
 
-        $this->chatbot->handle($message, $whatsappNumber);
+        foreach ($messages as $message) {
+            $this->chatbot->handle($message, $whatsappNumber);
+        }
+    }
+
+    // Verifica que el POST venga realmente de Meta usando el HMAC-SHA256 del
+    // body firmado con el App Secret. Sin WHATSAPP_APP_SECRET configurado no
+    // se puede verificar, así que se deja pasar mostrando un aviso (dev sin
+    // secret todavía configurado) en vez de romper el webhook.
+    protected function hasValidSignature(Request $request): bool
+    {
+        $appSecret = config('services.whatsapp.app_secret');
+
+        if (!$appSecret) {
+            Log::warning('WHATSAPP_APP_SECRET no configurado: no se está verificando la firma del webhook');
+
+            return true;
+        }
+
+        $signature = $request->header('X-Hub-Signature-256', '');
+
+        if (!str_starts_with($signature, 'sha256=')) {
+            return false;
+        }
+
+        $expected = 'sha256=' . hash_hmac('sha256', $request->getContent(), $appSecret);
+
+        return hash_equals($expected, $signature);
     }
 }

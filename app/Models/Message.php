@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Storage;
 class Message extends Model
 {
     protected $fillable = [
+        'wamid',
         'cliente_telefono',
         'advisor_id',
         'whatsapp_number_id',

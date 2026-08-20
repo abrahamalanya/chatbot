@@ -526,7 +526,7 @@
                 </a>`;
             }
 
-            return escapeHtml(msg.mensaje);
+            return escapeHtml(msg.mensaje.trim());
         }
 
         function renderMsg(msg) {
