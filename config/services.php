@@ -39,6 +39,7 @@ return [
         'token'           => env('WHATSAPP_TOKEN'),
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
         'verify_token'    => env('VERIFY_TOKEN'),
+        'app_secret'      => env('WHATSAPP_APP_SECRET'),
         'templates'       => [
             'asesor_asignado' => env('WHATSAPP_TEMPLATE_ASIGNADO', 'credimas_asesor_asignado'),
             'asesor_acepto'   => env('WHATSAPP_TEMPLATE_ACEPTO',   'credimas_asesor_acepto'),

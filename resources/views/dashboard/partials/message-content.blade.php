@@ -46,6 +46,4 @@
         <span>{{ $msg->mensaje }}</span>
     </a>
 
-@else
-    {{ $msg->mensaje }}
-@endif
+@else{{ trim($msg->mensaje) }}@endif

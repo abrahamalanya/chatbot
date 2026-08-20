@@ -6,8 +6,7 @@ return [
 
 Somos *CREDIMAS ORIENTE* y agradecemos que se haya comunicado con nosotros. Ha sido un gusto atenderle.
 
-¡Hasta luego! Esperamos poder ayudarle nuevamente muy pronto. 👋
-',
+¡Hasta luego! Esperamos poder ayudarle nuevamente muy pronto. 👋',
     'creditos' => [
         'hipotecario' => [
             'requisitos' => '
