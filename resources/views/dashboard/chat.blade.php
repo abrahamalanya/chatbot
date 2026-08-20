@@ -157,7 +157,7 @@
             </div>
 
             {{-- Mensajes --}}
-            <div id="chat-box" class="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+            <div id="chat-box" class="flex-1 overflow-y-auto px-5 py-4 space-y-1.5">
                 @foreach($mensajes as $msg)
                     @if($msg->tipo === 'opcion')
                     <div class="flex justify-center">
@@ -170,16 +170,16 @@
                     </div>
                     @elseif($msg->sender === 'asesor')
                     <div class="flex justify-end">
-                        <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words">
+                        <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words">
                             @include('dashboard.partials.message-content', ['msg' => $msg, 'light' => true])
-                            <p class="text-xs text-blue-300 mt-1 text-right">{{ $msg->created_at->format('H:i') }}</p>
+                            <p class="text-xs text-blue-300 mt-0.5 text-right">{{ $msg->created_at->format('H:i') }}</p>
                         </div>
                     </div>
                     @else
                     <div class="flex justify-start">
-                        <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm whitespace-pre-wrap break-words">
+                        <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2 rounded-2xl rounded-tl-sm shadow-sm whitespace-pre-wrap break-words">
                             @include('dashboard.partials.message-content', ['msg' => $msg, 'light' => false])
-                            <p class="text-xs text-gray-400 mt-1">{{ $msg->created_at->format('H:i') }}</p>
+                            <p class="text-xs text-gray-400 mt-0.5">{{ $msg->created_at->format('H:i') }}</p>
                         </div>
                     </div>
                     @endif
@@ -544,16 +544,16 @@
             }
             if (msg.sender === 'asesor') {
                 return `<div class="flex justify-end">
-                    <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words">
+                    <div class="max-w-xs lg:max-w-sm bg-blue-900 text-white text-sm px-4 py-2 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words">
                         ${renderContent(msg, true)}
-                        <p class="text-xs text-blue-300 mt-1 text-right">${hora}</p>
+                        <p class="text-xs text-blue-300 mt-0.5 text-right">${hora}</p>
                     </div>
                 </div>`;
             }
             return `<div class="flex justify-start">
-                <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm whitespace-pre-wrap break-words">
+                <div class="max-w-xs lg:max-w-sm bg-gray-100 text-gray-800 text-sm px-4 py-2 rounded-2xl rounded-tl-sm shadow-sm whitespace-pre-wrap break-words">
                     ${renderContent(msg, false)}
-                    <p class="text-xs text-gray-400 mt-1">${hora}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">${hora}</p>
                 </div>
             </div>`;
         }
