@@ -229,12 +229,28 @@
 
             @else
             {{-- ESTADO: expirada o cerrada --}}
-            <div class="border-t border-gray-100 px-4 py-3 shrink-0 text-center text-xs text-gray-400">
-                @if($assignment?->disposition)
-                    Conversación cerrada ·
-                    <span class="font-medium">{{ \App\Models\Assignment::DISPOSITIONS[$assignment->disposition] }}</span>
-                @else
-                    Solo historial — sin conversación activa
+            <div class="border-t border-gray-100 px-4 py-3 shrink-0 flex items-center justify-between gap-3">
+                <p class="text-xs text-gray-400">
+                    @if($assignment?->disposition)
+                        Conversación cerrada ·
+                        <span class="font-medium">{{ \App\Models\Assignment::DISPOSITIONS[$assignment->disposition] ?? $assignment->disposition }}</span>
+                    @else
+                        Solo historial — sin conversación activa
+                    @endif
+                </p>
+                @if($assignment)
+                <form method="POST" action="{{ route('chat.reopen') }}"
+                      onsubmit="return confirm('Se reabrirá la sesión con este cliente y se le enviará una notificación por WhatsApp. ¿Continuar?');">
+                    @csrf
+                    <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
+                    <button type="submit"
+                            class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Reabrir sesión
+                    </button>
+                </form>
                 @endif
             </div>
             @endif
