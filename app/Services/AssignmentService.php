@@ -89,6 +89,33 @@ class AssignmentService
         return $assignment->fresh();
     }
 
+    // Reabre la atención con un cliente cuya última sesión ya está cerrada o
+    // expirada. Se crea una asignación nueva (una fila por sesión) ya aceptada
+    // y con la ventana corriendo, y se reenvía el template para reabrir la
+    // ventana de 24h del lado de WhatsApp si el cliente escribió hace rato.
+    public function reopenAssignment(Assignment $previous, Advisor $advisor, int $durationMinutes = 15): Assignment
+    {
+        $assignment = Assignment::create([
+            'cliente_telefono'        => $previous->cliente_telefono,
+            'advisor_id'              => $advisor->id,
+            'whatsapp_number_id'      => $previous->whatsapp_number_id,
+            'status'                  => Assignment::STATUS_ASSIGNED,
+            'conversation_duration'   => $durationMinutes,
+            'accepted_at'             => now(),
+            'conversation_expires_at' => now()->addMinutes($durationMinutes),
+        ]);
+
+        $this->whatsapp->sendTemplate(
+            $assignment->cliente_telefono,
+            $assignment->whatsappNumber->templateAsesorAcepto(),
+            [],
+            'es',
+            $assignment->whatsappNumber->phone_number_id
+        );
+
+        return $assignment;
+    }
+
     public function extendConversation(Assignment $assignment, int $minutes = 10): Assignment
     {
         $base = $assignment->conversation_expires_at && $assignment->conversation_expires_at->isFuture()

@@ -44,6 +44,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/chat/messages', [ChatController::class, 'messages'])->name('chat.messages');
         Route::post('/chat/send', [ChatController::class, 'send'])->name('chat.send');
         Route::post('/chat/accept', [ChatController::class, 'accept'])->name('chat.accept');
+        Route::post('/chat/reopen', [ChatController::class, 'reopen'])->name('chat.reopen');
         Route::post('/chat/extend', [ChatController::class, 'extend'])->name('chat.extend');
         Route::post('/chat/close', [ChatController::class, 'close'])->name('chat.close');
 
