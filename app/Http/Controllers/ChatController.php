@@ -174,6 +174,33 @@ class ChatController extends Controller
         return back()->with('success', "Se agregaron {$minutos} minutos a la sesión.");
     }
 
+    public function reopen(Request $request)
+    {
+        $request->validate(['cliente_telefono' => 'required']);
+
+        $advisor = auth()->user()->advisor;
+
+        $previa = Assignment::where('cliente_telefono', $request->cliente_telefono)
+            ->where('advisor_id', $advisor->id)
+            ->with('whatsappNumber')
+            ->latest()
+            ->first();
+
+        if (!$previa) {
+            return back()->with('error', 'No se encontró una conversación previa con este cliente.');
+        }
+
+        if ($previa->isConversationActive()) {
+            return redirect()->route('chat.index', ['cliente' => $request->cliente_telefono])
+                ->with('error', 'La sesión con este cliente ya está activa.');
+        }
+
+        $nueva = $this->assignment->reopenAssignment($previa, $advisor);
+
+        return redirect()->route('chat.index', ['cliente' => $request->cliente_telefono])
+            ->with('success', "Sesión reabierta. Tienes {$nueva->conversation_duration} minutos.");
+    }
+
     public function send(Request $request)
     {
         $request->validate([
