@@ -157,7 +157,9 @@
             @if($clienteSeleccionado)
 
             {{-- Header --}}
-            <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-200 shrink-0 bg-[#008069]">
+            <div class="px-5 py-3 border-b border-gray-200 shrink-0 bg-[#008069] space-y-2">
+              {{-- Fila 1: identidad del cliente --}}
+              <div class="flex items-center gap-3">
                 <button type="button" @click="panelInfo = !panelInfo"
                         class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white font-semibold text-sm shrink-0 hover:bg-white/30 transition">
                     {{ strtoupper(substr($clienteSeleccionado, -2)) }}
@@ -187,7 +189,10 @@
                         <p class="text-xs text-green-100">Historial</p>
                     @endif
                 </button>
+              </div>
 
+              {{-- Fila 2: acciones (en lista, con salto de línea si no caben) --}}
+              <div class="flex items-center gap-2 flex-wrap">
                 {{-- Registro de cliente --}}
                 @if($clienteRegistro)
                 <button @click="modalCliente = true"
@@ -215,7 +220,7 @@
                      data-expires="{{ $assignment->conversation_expires_at->toIso8601String() }}">—</div>
                 @endif
 
-                {{-- Botón extender tiempo (solo si hay sesión activa) --}}
+                {{-- Botones extender tiempo (solo si hay sesión activa) --}}
                 @if($assignment?->status === 'assigned' && $assignment?->accepted_at)
                 <form method="POST" action="{{ route('chat.extend') }}">
                     @csrf
@@ -230,6 +235,19 @@
                         +10 min
                     </button>
                 </form>
+                <form method="POST" action="{{ route('chat.extend') }}">
+                    @csrf
+                    <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
+                    <input type="hidden" name="minutos" value="60">
+                    <button type="submit"
+                            class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/90 text-blue-700 text-xs font-medium rounded-lg hover:bg-white transition"
+                            title="Agregar 1 hora a la sesión">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        +1 hora
+                    </button>
+                </form>
                 @endif
 
                 {{-- Botón cerrar (solo si hay sesión activa) --}}
@@ -242,6 +260,7 @@
                     Cerrar
                 </button>
                 @endif
+              </div>
             </div>
 
             {{-- Mensajes --}}
