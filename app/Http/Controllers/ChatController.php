@@ -45,22 +45,36 @@ class ChatController extends Controller
             ->whereNotNull('nombre')
             ->pluck('nombre', 'cliente_telefono');
 
+        // Fecha del último mensaje real (no de la asignación): un cliente ya
+        // atendido que vuelve a escribir semanas después no crea una nueva
+        // asignación hasta que complete el menú del bot, así que ordenar por
+        // la asignación lo dejaba "enterrado" en la lista pese a tener
+        // mensajes nuevos sin leer.
+        $ultimoMensajeAt = Message::whereIn('cliente_telefono', Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono'))
+            ->selectRaw('cliente_telefono, MAX(created_at) as ultimo_mensaje_at')
+            ->groupBy('cliente_telefono')
+            ->pluck('ultimo_mensaje_at', 'cliente_telefono');
+
         $clientes = Assignment::where('advisor_id', $advisor->id)
             ->selectRaw('cliente_telefono, COUNT(*) as total_sesiones, MAX(created_at) as last_activity')
             ->groupBy('cliente_telefono')
-            ->orderByDesc('last_activity')
             ->get()
-            ->map(function ($c) use ($latestAssignments, $unreadCounts, $nombresRegistrados) {
+            ->map(function ($c) use ($latestAssignments, $unreadCounts, $nombresRegistrados, $ultimoMensajeAt) {
                 $c->latest            = $latestAssignments[$c->cliente_telefono] ?? null;
                 $c->unread_count      = $unreadCounts[$c->cliente_telefono] ?? 0;
                 $c->nombre            = $nombresRegistrados[$c->cliente_telefono] ?? null;
                 $c->pendiente_aceptar = $c->latest?->status === Assignment::STATUS_ASSIGNED && !$c->latest?->accepted_at;
+                $c->tiene_no_leidos   = $c->unread_count > 0;
+                $c->last_activity     = max($c->last_activity, $ultimoMensajeAt[$c->cliente_telefono] ?? $c->last_activity);
                 return $c;
             })
-            // Los clientes recién asignados (nuevos o recurrentes) que el
-            // asesor aún no acepta van primero, sin importar su última actividad.
+            // Prioridad: 1) recién asignados sin aceptar (urgente por el
+            // tiempo de espera), 2) cualquier cliente con mensajes sin leer
+            // -incluidos los ya cerrados que vuelven a escribir-, 3) el resto
+            // por actividad más reciente.
             ->sortBy([
                 ['pendiente_aceptar', 'desc'],
+                ['tiene_no_leidos', 'desc'],
                 ['last_activity', 'desc'],
             ])
             ->values();

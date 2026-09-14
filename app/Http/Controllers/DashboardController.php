@@ -98,7 +98,7 @@ class DashboardController extends Controller
         ]);
 
         $advisor   = Advisor::findOrFail($request->advisor_id);
-        $duration  = (int) $request->input('duration', 15);
+        $duration  = (int) $request->input('duration', 60);
 
         if ($assignment->advisor_id === $advisor->id) {
             return back()->with('error', "{$advisor->nombre} ya tiene asignado a este cliente.");
@@ -111,6 +111,46 @@ class DashboardController extends Controller
         $mensaje = $esReasignacion
             ? "Cliente {$assignment->cliente_telefono} reasignado a {$advisor->nombre} ({$duration} min)."
             : "Cliente {$assignment->cliente_telefono} asignado a {$advisor->nombre} ({$duration} min).";
+
+        return redirect()->route('dashboard')->with('success', $mensaje);
+    }
+
+    public function bulkAssign(Request $request)
+    {
+        $request->validate([
+            'assignment_ids'   => 'required|array|min:1',
+            'assignment_ids.*' => 'integer|exists:assignments,id',
+            'advisor_id'       => 'required|exists:advisors,id',
+            'duration'         => 'nullable|integer|min:5|max:120',
+        ]);
+
+        $advisor  = Advisor::findOrFail($request->advisor_id);
+        $duration = (int) $request->input('duration', 60);
+
+        // Solo se asignan en grupo los que siguen realmente en espera; si
+        // alguno ya fue tomado por otro admin mientras se seleccionaba, se
+        // omite en vez de pisar esa asignación.
+        $pendientes = Assignment::whereIn('id', $request->assignment_ids)
+            ->where('status', Assignment::STATUS_PENDING)
+            ->get();
+
+        $service = app(AssignmentService::class);
+
+        foreach ($pendientes as $assignment) {
+            $service->assignAdvisor($assignment, $advisor, $duration);
+        }
+
+        $asignados = $pendientes->count();
+        $omitidos  = count($request->assignment_ids) - $asignados;
+
+        if ($asignados === 0) {
+            return back()->with('error', 'Ninguno de los clientes seleccionados sigue en espera.');
+        }
+
+        $mensaje = "{$asignados} cliente(s) asignado(s) a {$advisor->nombre} ({$duration} min).";
+        if ($omitidos > 0) {
+            $mensaje .= " {$omitidos} ya no estaban en espera y se omitieron.";
+        }
 
         return redirect()->route('dashboard')->with('success', $mensaje);
     }
