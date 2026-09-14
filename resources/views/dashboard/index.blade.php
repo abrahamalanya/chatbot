@@ -34,22 +34,63 @@
     </div>
 
     {{-- Cola de pendientes --}}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 mb-6" x-data="{ openId: null }">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <div class="flex items-center gap-2">
-                <h2 class="font-semibold text-gray-800">Clientes en espera</h2>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 mb-6" x-data="{ openId: null, seleccionados: [] }">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-wrap gap-3">
+            <div class="flex items-center gap-3">
                 @if($pendientes->count() > 0)
-                    <span class="inline-flex items-center justify-center w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full">
-                        {{ $pendientes->count() }}
-                    </span>
+                <input type="checkbox"
+                       class="w-4 h-4 rounded border-gray-300 text-blue-900 focus:ring-blue-500"
+                       title="Seleccionar todos"
+                       @change="seleccionados = $event.target.checked ? @js($pendientes->pluck('id')) : []"
+                       :checked="seleccionados.length === {{ $pendientes->count() }}">
                 @endif
+                <div class="flex items-center gap-2">
+                    <h2 class="font-semibold text-gray-800">Clientes en espera</h2>
+                    @if($pendientes->count() > 0)
+                        <span class="inline-flex items-center justify-center w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full">
+                            {{ $pendientes->count() }}
+                        </span>
+                    @endif
+                </div>
             </div>
+
+            {{-- Barra de asignación en grupo --}}
+            @if($pendientes->count() > 0)
+            <form id="bulk-assign-form" method="POST" action="{{ route('assignments.bulkAssign') }}"
+                  x-show="seleccionados.length > 0" x-transition
+                  class="flex items-center gap-2 flex-wrap"
+                  onsubmit="return confirm('¿Asignar los clientes seleccionados a este asesor?')">
+                @csrf
+                <span class="text-xs font-medium text-blue-900" x-text="seleccionados.length + ' seleccionado(s)'"></span>
+                <select name="advisor_id" required
+                        class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <option value="">Asesor...</option>
+                    @foreach($asesores as $asesor)
+                        <option value="{{ $asesor->id }}">{{ $asesor->nombre }}</option>
+                    @endforeach
+                </select>
+                <select name="duration"
+                        class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <option value="5">5 min</option>
+                    <option value="15">15 min</option>
+                    <option value="30">30 min</option>
+                    <option value="60" selected>1 hora</option>
+                </select>
+                <button type="submit"
+                        class="px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition whitespace-nowrap">
+                    Asignar seleccionados
+                </button>
+            </form>
+            @endif
         </div>
 
         @forelse($pendientes as $pendiente)
         <div class="border-b border-gray-100 last:border-0">
             <div class="flex items-center justify-between px-6 py-4">
                 <div class="flex items-center gap-3">
+                    <input type="checkbox" form="bulk-assign-form" name="assignment_ids[]" value="{{ $pendiente->id }}"
+                           x-model="seleccionados"
+                           class="w-4 h-4 rounded border-gray-300 text-blue-900 focus:ring-blue-500 shrink-0">
                     <div class="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-semibold text-sm">
                         {{ strtoupper(substr($pendiente->cliente_telefono, -2)) }}
                     </div>
@@ -109,9 +150,9 @@
                             <select name="duration"
                                     class="border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                 <option value="5">5 min</option>
-                                <option value="15" selected>15 min</option>
+                                <option value="15">15 min</option>
                                 <option value="30">30 min</option>
-                                <option value="60">1 hora</option>
+                                <option value="60" selected>1 hora</option>
                             </select>
                         </div>
                     </div>
@@ -260,9 +301,9 @@
                                         <select name="duration"
                                                 class="border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                             <option value="5">5 min</option>
-                                            <option value="15" selected>15 min</option>
+                                            <option value="15">15 min</option>
                                             <option value="30">30 min</option>
-                                            <option value="60">1 hora</option>
+                                            <option value="60" selected>1 hora</option>
                                         </select>
                                     </div>
                                 </div>

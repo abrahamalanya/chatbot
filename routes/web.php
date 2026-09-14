@@ -32,6 +32,7 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:sistema|admin'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/assignments/{assignment}/assign', [DashboardController::class, 'assign'])->name('assignments.assign');
+        Route::post('/assignments/bulk-assign', [DashboardController::class, 'bulkAssign'])->name('assignments.bulkAssign');
         Route::get('/mensajes', [DashboardController::class, 'messages'])->name('admin.messages');
         Route::resource('/advisors', AdvisorController::class)->except(['show']);
         Route::resource('/users', UserController::class)->except(['show']);

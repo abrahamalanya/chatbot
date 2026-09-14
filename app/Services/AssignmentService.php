@@ -43,7 +43,7 @@ class AssignmentService
         ]);
     }
 
-    public function assignAdvisor(Assignment $assignment, Advisor $advisor, int $durationMinutes = 15): Assignment
+    public function assignAdvisor(Assignment $assignment, Advisor $advisor, int $durationMinutes = 60): Assignment
     {
         // El tiempo NO corre aún — arranca cuando el asesor acepte
         $assignment->update([
