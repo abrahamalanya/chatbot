@@ -178,10 +178,49 @@
     </div>
 
     {{-- Historial de atenciones --}}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100" x-data="{ openHistId: null }">
+    @php $historialAsignables = $asignados->where('status', \App\Models\Assignment::STATUS_ASSIGNED)->pluck('id'); @endphp
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100" x-data="{ openHistId: null, seleccionadosHist: [] }">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-wrap gap-3">
-            <h2 class="font-semibold text-gray-800">Historial de atenciones</h2>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-3">
+                @if($historialAsignables->count() > 0)
+                <input type="checkbox"
+                       class="w-4 h-4 rounded border-gray-300 text-blue-900 focus:ring-blue-500"
+                       title="Seleccionar todos"
+                       @change="seleccionadosHist = $event.target.checked ? @js($historialAsignables) : []"
+                       :checked="seleccionadosHist.length === {{ $historialAsignables->count() }}">
+                @endif
+                <h2 class="font-semibold text-gray-800">Historial de atenciones</h2>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                {{-- Barra de asignación en grupo --}}
+                @if($historialAsignables->count() > 0)
+                <form id="bulk-assign-hist-form" method="POST" action="{{ route('assignments.bulkAssign') }}"
+                      x-show="seleccionadosHist.length > 0" x-transition
+                      class="flex items-center gap-2 flex-wrap"
+                      onsubmit="return confirm('¿Asignar los clientes seleccionados a este asesor?')">
+                    @csrf
+                    <span class="text-xs font-medium text-blue-900" x-text="seleccionadosHist.length + ' seleccionado(s)'"></span>
+                    <select name="advisor_id" required
+                            class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">Asesor...</option>
+                        @foreach($asesores as $asesor)
+                            <option value="{{ $asesor->id }}">{{ $asesor->nombre }}</option>
+                        @endforeach
+                    </select>
+                    <select name="duration"
+                            class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="5">5 min</option>
+                        <option value="15">15 min</option>
+                        <option value="30">30 min</option>
+                        <option value="60" selected>1 hora</option>
+                    </select>
+                    <button type="submit"
+                            class="px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition whitespace-nowrap">
+                        Asignar seleccionados
+                    </button>
+                </form>
+                @endif
+
                 {{-- Filtro por resultado --}}
                 <form method="GET" action="{{ route('dashboard') }}" class="flex items-center gap-2">
                     <select name="disposition" onchange="this.form.submit()"
@@ -204,6 +243,7 @@
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wide">
                     <tr>
+                        <th class="px-6 py-3"></th>
                         <th class="text-left px-6 py-3">Cliente</th>
                         <th class="text-left px-6 py-3">Línea</th>
                         <th class="text-left px-6 py-3">Asesor</th>
@@ -217,6 +257,13 @@
                 <tbody class="divide-y divide-gray-100">
                     @forelse($asignados as $asignado)
                     <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-3">
+                            @if($asignado->status === \App\Models\Assignment::STATUS_ASSIGNED)
+                            <input type="checkbox" form="bulk-assign-hist-form" name="assignment_ids[]" value="{{ $asignado->id }}"
+                                   x-model="seleccionadosHist"
+                                   class="w-4 h-4 rounded border-gray-300 text-blue-900 focus:ring-blue-500">
+                            @endif
+                        </td>
                         <td class="px-6 py-3 font-medium text-gray-800">+{{ $asignado->cliente_telefono }}</td>
                         <td class="px-6 py-3 text-gray-500 text-xs">{{ $asignado->whatsappNumber?->nombre ?? '—' }}</td>
                         <td class="px-6 py-3 text-gray-600">{{ $asignado->advisor?->nombre ?? '—' }}</td>
@@ -275,7 +322,7 @@
                         x-transition:enter="transition ease-out duration-100"
                         x-transition:enter-start="opacity-0 -translate-y-1"
                         x-transition:enter-end="opacity-100 translate-y-0">
-                        <td colspan="8" class="px-6 pb-4">
+                        <td colspan="9" class="px-6 pb-4">
                             <form method="POST" action="{{ route('assignments.assign', $asignado) }}"
                                   class="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3"
                                   @if($asignado->advisor_id) onsubmit="return confirm('Esto quita a {{ $asignado->advisor?->nombre }} de la conversación y reinicia el tiempo de espera con el nuevo asesor. ¿Continuar?')" @endif>
@@ -323,7 +370,7 @@
                     @endif
                     @empty
                     <tr>
-                        <td colspan="8" class="px-6 py-8 text-center text-gray-400">No hay atenciones aún.</td>
+                        <td colspan="9" class="px-6 py-8 text-center text-gray-400">No hay atenciones aún.</td>
                     </tr>
                     @endforelse
                 </tbody>
