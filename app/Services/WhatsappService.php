@@ -28,7 +28,7 @@ class WhatsappService
             'text'              => ['body' => $message],
         ];
 
-        Http::withToken($token)->post($url, $data);
+        Http::withToken($token)->timeout(10)->connectTimeout(5)->post($url, $data);
     }
 
     /**
@@ -64,7 +64,7 @@ class WhatsappService
             ],
         ];
 
-        Http::withToken($token)->post($url, $data);
+        Http::withToken($token)->timeout(10)->connectTimeout(5)->post($url, $data);
     }
 
     /**
@@ -77,7 +77,7 @@ class WhatsappService
     {
         $token = config('services.whatsapp.token');
 
-        $meta = Http::withToken($token)->get("https://graph.facebook.com/v25.0/{$mediaId}");
+        $meta = Http::withToken($token)->timeout(10)->connectTimeout(5)->get("https://graph.facebook.com/v25.0/{$mediaId}");
 
         if (!$meta->successful() || !$meta->json('url')) {
             return null;
@@ -85,7 +85,7 @@ class WhatsappService
 
         $mimeType = $meta->json('mime_type');
 
-        $file = Http::withToken($token)->get($meta->json('url'));
+        $file = Http::withToken($token)->timeout(20)->connectTimeout(5)->get($meta->json('url'));
 
         if (!$file->successful()) {
             return null;

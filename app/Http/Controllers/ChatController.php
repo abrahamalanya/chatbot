@@ -8,6 +8,7 @@ use App\Models\Message;
 use App\Models\WhatsappNumber;
 use App\Services\AssignmentService;
 use App\Services\WhatsappService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -234,10 +235,12 @@ class ChatController extends Controller
             ->first();
 
         if (!$assignment) {
-            return back()->with('error', 'La sesión ha expirado o no está activa.');
+            $error = 'La sesión ha expirado o no está activa.';
+
+            return $request->wantsJson() ? response()->json(['error' => $error], 422) : back()->with('error', $error);
         }
 
-        Message::create([
+        $message = Message::create([
             'cliente_telefono'   => $request->cliente_telefono,
             'advisor_id'         => $advisor->id,
             'whatsapp_number_id' => $assignment->whatsapp_number_id,
@@ -246,9 +249,20 @@ class ChatController extends Controller
             'tipo'               => 'texto',
         ]);
 
-        $this->whatsapp->send($request->cliente_telefono, $request->mensaje, $assignment->whatsappNumber->phone_number_id);
+        try {
+            $this->whatsapp->send($request->cliente_telefono, $request->mensaje, $assignment->whatsappNumber->phone_number_id);
+        } catch (ConnectionException $e) {
+            Log::warning('Timeout al enviar mensaje de WhatsApp desde el chat', [
+                'cliente_telefono' => $request->cliente_telefono,
+                'message_id'       => $message->id,
+            ]);
 
-        return back();
+            $error = 'El mensaje quedó registrado pero WhatsApp no respondió a tiempo. Puede que no le haya llegado al cliente.';
+
+            return $request->wantsJson() ? response()->json(['error' => $error, 'message' => $message], 502) : back()->with('error', $error);
+        }
+
+        return $request->wantsJson() ? response()->json(['message' => $message]) : back();
     }
 
     public function close(Request $request)

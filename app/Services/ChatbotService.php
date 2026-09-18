@@ -317,7 +317,7 @@ class ChatbotService
         $token = config('services.whatsapp.token');
         $url   = "https://graph.facebook.com/v25.0/{$whatsappNumber->phone_number_id}/messages";
 
-        $response = Http::withToken($token)->post($url, $payload);
+        $response = Http::withToken($token)->timeout(10)->connectTimeout(5)->post($url, $payload);
 
         if (!$response->successful()) {
             Log::warning('Fallo al enviar mensaje de WhatsApp', [

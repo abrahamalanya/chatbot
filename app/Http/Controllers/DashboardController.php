@@ -129,11 +129,15 @@ class DashboardController extends Controller
         $advisor = Advisor::findOrFail($request->advisor_id);
         $duration = (int) $request->input('duration', 60);
 
-        // Solo se asignan/reasignan en grupo los que siguen abiertos (en
-        // espera o ya asignados); si alguno se cerró mientras se
-        // seleccionaba, se omite en vez de reabrirlo.
+        // Elegibles en grupo: los que siguen abiertos (en espera o ya
+        // asignados) para reasignar, más los cerrados que nunca llegaron a
+        // tener un asesor (p. ej. sin_respuesta) para asignarles uno por
+        // primera vez. Un cerrado que ya tuvo asesor no se reabre en bulk.
         $elegibles = Assignment::whereIn('id', $request->assignment_ids)
-            ->whereIn('status', [Assignment::STATUS_PENDING, Assignment::STATUS_ASSIGNED])
+            ->where(function ($q) {
+                $q->whereIn('status', [Assignment::STATUS_PENDING, Assignment::STATUS_ASSIGNED])
+                  ->orWhereNull('advisor_id');
+            })
             ->get();
 
         $service = app(AssignmentService::class);
