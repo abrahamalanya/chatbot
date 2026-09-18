@@ -323,7 +323,7 @@
             @elseif($assignment?->isConversationActive())
             {{-- ESTADO: sesión activa — puede escribir --}}
             <div class="px-4 py-2.5 shrink-0 bg-[#f0f2f5]" id="input-area">
-                <form method="POST" action="{{ route('chat.send') }}" class="flex items-end gap-2">
+                <form method="POST" action="{{ route('chat.send') }}" class="flex items-end gap-2" id="chat-send-form">
                     @csrf
                     <input type="hidden" name="cliente_telefono" value="{{ $clienteSeleccionado }}">
                     <div class="flex-1 bg-white rounded-lg px-3 py-2 shadow-sm">
@@ -332,8 +332,8 @@
                                   class="w-full bg-transparent text-sm resize-none leading-normal focus:outline-none"
                                   style="max-height: 120px;"></textarea>
                     </div>
-                    <button type="submit"
-                            class="w-10 h-10 bg-[#00a884] text-white rounded-full flex items-center justify-center hover:bg-[#017561] transition shrink-0">
+                    <button type="submit" id="send-btn"
+                            class="w-10 h-10 bg-[#00a884] text-white rounded-full flex items-center justify-center hover:bg-[#017561] transition shrink-0 disabled:opacity-50">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                         </svg>
@@ -690,6 +690,87 @@
             msgInput.addEventListener('input', function () {
                 msgInput.style.height = 'auto';
                 msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+            });
+        }
+
+        // ── Toast genérico para errores de envío ───────────────────────────────
+        function showChatToast(msg, isError = true) {
+            let el = document.getElementById('chat-toast');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'chat-toast';
+                el.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg text-sm text-white max-w-sm text-center';
+                document.body.appendChild(el);
+            }
+            el.textContent = msg;
+            el.classList.toggle('bg-red-600', isError);
+            el.classList.toggle('bg-gray-800', !isError);
+            el.style.display = 'block';
+            clearTimeout(el._hideTimeout);
+            el._hideTimeout = setTimeout(() => { el.style.display = 'none'; }, 6000);
+        }
+
+        // ── Envío de mensajes por AJAX (sin recargar toda la página) ───────────
+        const chatForm = document.getElementById('chat-send-form');
+        if (chatForm) {
+            const sendBtn = document.getElementById('send-btn');
+
+            chatForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                if (chatForm.dataset.sending === '1') return;
+
+                const mensaje = msgInput.value.trim();
+                if (!mensaje) return;
+
+                chatForm.dataset.sending = '1';
+                sendBtn.disabled = true;
+                msgInput.value = '';
+                msgInput.style.height = 'auto';
+
+                const box = document.getElementById('chat-box');
+                const wasNearBottom = !box || isNearBottom(box);
+                const tempId = 'tmp-' + Date.now();
+
+                if (box) {
+                    box.insertAdjacentHTML('beforeend', `<div class="flex justify-end optimistic-temp" data-temp-id="${tempId}">
+                        <div class="wa-bubble wa-out max-w-[80%] lg:max-w-[65%] text-[#111b21] text-sm opacity-60">
+                            <div class="wa-text">${escapeHtml(mensaje)}</div>
+                            <div class="wa-meta"><span>Enviando…</span></div>
+                        </div>
+                    </div>`);
+                    if (wasNearBottom) scrollBottom();
+                }
+
+                const formData = new FormData(chatForm);
+                formData.set('mensaje', mensaje);
+
+                fetch(chatForm.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    body: formData,
+                })
+                .then(async (r) => {
+                    const data = await r.json().catch(() => ({}));
+                    if (!r.ok && r.status !== 502) {
+                        throw new Error(data.error || 'No se pudo enviar el mensaje.');
+                    }
+                    if (data.error) {
+                        showChatToast(data.error);
+                    }
+                    document.querySelectorAll('.optimistic-temp').forEach(n => n.remove());
+                    cargarMensajes();
+                })
+                .catch((err) => {
+                    document.querySelectorAll(`[data-temp-id="${tempId}"]`).forEach(n => n.remove());
+                    msgInput.value = mensaje;
+                    showChatToast(err.message || 'No se pudo enviar el mensaje. Intenta de nuevo.');
+                })
+                .finally(() => {
+                    chatForm.dataset.sending = '0';
+                    sendBtn.disabled = false;
+                    msgInput.focus();
+                });
             });
         }
 

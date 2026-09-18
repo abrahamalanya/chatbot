@@ -178,7 +178,11 @@
     </div>
 
     {{-- Historial de atenciones --}}
-    @php $historialAsignables = $asignados->where('status', \App\Models\Assignment::STATUS_ASSIGNED)->pluck('id'); @endphp
+    @php
+        $historialAsignables = $asignados
+            ->filter(fn ($a) => !$a->advisor_id || $a->status === \App\Models\Assignment::STATUS_ASSIGNED)
+            ->pluck('id');
+    @endphp
     <div class="bg-white rounded-xl shadow-sm border border-gray-100" x-data="{ openHistId: null, seleccionadosHist: [] }">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-wrap gap-3">
             <div class="flex items-center gap-3">
@@ -258,7 +262,7 @@
                     @forelse($asignados as $asignado)
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-3">
-                            @if($asignado->status === \App\Models\Assignment::STATUS_ASSIGNED)
+                            @if(!$asignado->advisor_id || $asignado->status === \App\Models\Assignment::STATUS_ASSIGNED)
                             <input type="checkbox" form="bulk-assign-hist-form" name="assignment_ids[]" value="{{ $asignado->id }}"
                                    x-model="seleccionadosHist"
                                    class="w-4 h-4 rounded border-gray-300 text-blue-900 focus:ring-blue-500">
