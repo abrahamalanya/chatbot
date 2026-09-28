@@ -85,7 +85,7 @@
         </div>
 
         @forelse($pendientes as $pendiente)
-        <div class="border-b border-gray-100 last:border-0">
+        <div class="border-b border-gray-100 last:border-0 transition-colors duration-100 {{ $loop->iteration % 2 === 0 ? 'bg-gray-50/70' : 'bg-white' }} hover:bg-orange-50/70">
             <div class="flex items-center justify-between px-6 py-4">
                 <div class="flex items-center gap-3">
                     <input type="checkbox" form="bulk-assign-form" name="assignment_ids[]" value="{{ $pendiente->id }}"
@@ -260,7 +260,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($asignados as $asignado)
-                    <tr class="hover:bg-gray-50">
+                    <tr class="transition-colors duration-100 {{ $loop->iteration % 2 === 0 ? 'bg-gray-50/70' : 'bg-white' }} hover:bg-blue-50">
                         <td class="px-6 py-3">
                             @if(!$asignado->advisor_id || $asignado->status === \App\Models\Assignment::STATUS_ASSIGNED)
                             <input type="checkbox" form="bulk-assign-hist-form" name="assignment_ids[]" value="{{ $asignado->id }}"
@@ -323,6 +323,7 @@
                     </tr>
                     @if(!$asignado->advisor_id || $asignado->status === 'assigned')
                     <tr x-show="openHistId === {{ $asignado->id }}"
+                        class="bg-white/60 hover:bg-blue-50 transition-colors duration-100"
                         x-transition:enter="transition ease-out duration-100"
                         x-transition:enter-start="opacity-0 -translate-y-1"
                         x-transition:enter-end="opacity-100 translate-y-0">
