@@ -40,9 +40,13 @@ class DashboardController extends Controller
         // Filtro por disposition en historial
         $filtroDisposition = $request->input('disposition');
 
+        // Primero los que aún no tienen asesor (botón "Asignar asesor"),
+        // y dentro de cada grupo los más recientes primero.
         $historialQuery = Assignment::whereIn('status', [Assignment::STATUS_ASSIGNED, Assignment::STATUS_CLOSED])
             ->with(['advisor', 'whatsappNumber'])
-            ->latest();
+            ->orderByRaw('advisor_id IS NOT NULL')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
         if ($filtroDisposition) {
             $historialQuery->where('disposition', $filtroDisposition);
