@@ -43,6 +43,9 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:asesor|supervisor'])->group(function () {
         Route::get('/chat', [ChatController::class, 'index'])->name('chat.index');
         Route::get('/chat/messages', [ChatController::class, 'messages'])->name('chat.messages');
+        // La lista de contactos se refresca sola para que un cliente recién
+        // asignado aparezca sin que el asesor tenga que recargar la página.
+        Route::get('/chat/clientes-lista', [ChatController::class, 'clientList'])->name('chat.clientesLista');
         Route::post('/chat/send', [ChatController::class, 'send'])->name('chat.send');
         Route::post('/chat/accept', [ChatController::class, 'accept'])->name('chat.accept');
         Route::post('/chat/reopen', [ChatController::class, 'reopen'])->name('chat.reopen');

@@ -12,6 +12,18 @@
         {{ session('error') }}
     </div>
     @endif
+    {{-- Sin esto, un formulario que falla la validación (p. ej. "Confirmar
+         asignación" sin elegir asesor) no mostraba nada y el admin creía que
+         había asignado cuando en realidad el cliente seguía en cola. --}}
+    @if($errors->any())
+    <div class="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+        <ul class="list-disc list-inside space-y-0.5">
+            @foreach($errors->all() as $error)
+            <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
 
     {{-- Estadísticas --}}
     <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
@@ -66,7 +78,7 @@
                         class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                     <option value="">Asesor...</option>
                     @foreach($asesores as $asesor)
-                        <option value="{{ $asesor->id }}">{{ $asesor->nombre }}</option>
+                        <option value="{{ $asesor->id }}">{{ $asesor->nombre }} · +{{ $asesor->telefono }}</option>
                     @endforeach
                 </select>
                 <select name="duration"
@@ -138,11 +150,14 @@
                       class="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
                     @csrf
                     <div class="flex items-center gap-3">
-                        <select name="advisor_id"
+                        <select name="advisor_id" required
                                 class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                             <option value="">Selecciona un asesor...</option>
                             @foreach($asesores as $asesor)
-                                <option value="{{ $asesor->id }}">{{ $asesor->nombre }} — {{ $asesor->assignments()->assigned()->count() }} clientes activos</option>
+                                {{-- Teléfono visible: con nombres repetidos el admin
+                                     no tenía forma de distinguir dos fichas y
+                                     podía asignar a la que nadie ve. --}}
+                                <option value="{{ $asesor->id }}">{{ $asesor->nombre }} · +{{ $asesor->telefono }} — {{ $asesor->assignments()->assigned()->count() }} clientes activos</option>
                             @endforeach
                         </select>
                         <div class="flex items-center gap-1.5 shrink-0">
@@ -338,12 +353,12 @@
                                 </p>
                                 @endif
                                 <div class="flex items-center gap-3">
-                                    <select name="advisor_id"
+                                    <select name="advisor_id" required
                                             class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                         <option value="">Selecciona un asesor...</option>
                                         @foreach($asesores as $asesor)
                                             <option value="{{ $asesor->id }}" {{ $asignado->advisor_id === $asesor->id ? 'disabled' : '' }}>
-                                                {{ $asesor->nombre }} — {{ $asesor->assignments()->assigned()->count() }} clientes activos
+                                                {{ $asesor->nombre }} · +{{ $asesor->telefono }} — {{ $asesor->assignments()->assigned()->count() }} clientes activos
                                                 {{ $asignado->advisor_id === $asesor->id ? '(actual)' : '' }}
                                             </option>
                                         @endforeach

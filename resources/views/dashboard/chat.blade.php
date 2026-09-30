@@ -76,7 +76,7 @@
         <div class="w-80 shrink-0 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
             <div class="px-4 py-3 bg-[#008069] shrink-0">
                 <p class="text-sm font-semibold text-white">Mis clientes</p>
-                <p class="text-xs text-green-100 mt-0.5">{{ $clientes->count() }} contactos</p>
+                <p class="text-xs text-green-100 mt-0.5"><span id="client-list-count">{{ $clientes->count() }} contactos</span></p>
             </div>
             <div class="px-3 py-2.5 border-b border-gray-100 shrink-0">
                 <div class="relative">
@@ -96,58 +96,10 @@
                 </div>
             </div>
             <div id="client-list" class="flex-1 overflow-y-auto divide-y divide-gray-100">
-                @forelse($clientes as $cliente)
-                @php $latest = $cliente->latest; @endphp
-                <a href="{{ route('chat.index', ['cliente' => $cliente->cliente_telefono]) }}"
-                   x-show="filterMatch(@js($cliente->nombre ?: ''), @js($cliente->cliente_telefono), {{ (int) $cliente->unread_count }})"
-                   class="flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition
-                          {{ $clienteSeleccionado === $cliente->cliente_telefono ? 'bg-blue-50 border-l-2 border-blue-600' : '' }}">
-                    <div class="relative shrink-0">
-                        <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
-                            {{ strtoupper(substr($cliente->cliente_telefono, -2)) }}
-                        </div>
-                        {{-- Indicador de estado --}}
-                        @if($latest?->status === 'assigned' && !$latest?->accepted_at)
-                            <span class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-orange-400 border-2 border-white rounded-full" title="Pendiente de aceptar"></span>
-                        @elseif($latest?->isConversationActive())
-                            <span class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full" title="Activo"></span>
-                        @endif
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium text-gray-800 truncate">
-                            {{ $cliente->nombre ?: '+' . $cliente->cliente_telefono }}
-                        </p>
-                        <p class="text-xs text-gray-400">
-                            @if($latest?->status === 'assigned' && !$latest?->accepted_at)
-                                <span class="text-orange-500 font-medium">Pendiente aceptar</span>
-                            @elseif($latest?->isConversationActive())
-                                <span class="text-green-600 font-medium">En sesión</span>
-                            @elseif($cliente->total_sesiones > 1)
-                                {{ $cliente->total_sesiones }} sesiones
-                            @else
-                                WhatsApp
-                            @endif
-                            @if($latest?->whatsappNumber)
-                                · {{ $latest->whatsappNumber->nombre }}
-                            @endif
-                        </p>
-                        @if($latest?->status === 'closed' && $latest?->disposition)
-                        <p class="text-xs text-gray-400 truncate">
-                            {{ \App\Models\Assignment::DISPOSITIONS[$latest->disposition] ?? $latest->disposition }}
-                        </p>
-                        @endif
-                    </div>
-                    @if($cliente->unread_count > 0)
-                    <span class="shrink-0 min-w-[1rem] h-4 px-1 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center" title="Mensajes sin leer">
-                        {{ $cliente->unread_count }}
-                    </span>
-                    @endif
-                </a>
-                @empty
-                <div class="px-4 py-8 text-center text-gray-400 text-sm">
-                    No tienes clientes asignados aún.
-                </div>
-                @endforelse
+                @include('dashboard.partials.client-list', [
+                    'clientes' => $clientes,
+                    'clienteSeleccionado' => $clienteSeleccionado,
+                ])
             </div>
         </div>
 
@@ -634,6 +586,72 @@
                 }
             });
         }
+
+        // ── Lista de clientes: refresco automático ───────────────────────────
+        // El panel sólo polleaba los mensajes del cliente abierto, así que un
+        // cliente recién asignado por el admin no aparecía hasta que el asesor
+        // recargara la página a mano (justo lo que reportaba soporte: "asigné un
+        // cliente y no aparece en la ventana del asesor para aceptar").
+        const LISTA_URL = @json(route('chat.clientesLista'));
+        let listaHtmlActual = document.getElementById('client-list')?.innerHTML ?? '';
+        let listaFirma = '';
+        let pendientesConocidos = new Set(@json($clientes->where('pendiente_aceptar', true)->pluck('cliente_telefono')));
+
+        function cargarListaClientes() {
+            if (document.hidden) return;
+
+            const params = new URLSearchParams();
+            if (clienteTelefono) params.set('cliente', clienteTelefono);
+            if (listaFirma) params.set('firma', listaFirma);
+
+            fetch(LISTA_URL + '?' + params.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => (r.ok ? r.json() : null))
+                .then(data => {
+                    // html === null → el servidor no renderizó porque nada cambió
+                    if (!data) return;
+
+                    if (data.firma) listaFirma = data.firma;
+
+                    if (data.html) {
+                        const lista = document.getElementById('client-list');
+                        if (lista) {
+                            const contador = document.getElementById('client-list-count');
+                            if (contador) contador.textContent = data.total + (data.total === 1 ? ' contacto' : ' contactos');
+
+                            if (data.html !== listaHtmlActual) {
+                                const scroll = lista.scrollTop;
+                                lista.innerHTML = data.html;
+                                lista.scrollTop = scroll;
+                                listaHtmlActual = data.html;
+                                // Los x-show del partial necesitan su propio init.
+                                if (window.Alpine) Alpine.initTree(lista);
+                            }
+                        }
+                    }
+
+                    if (!data.pendientes) return;
+
+                    // Aviso de cliente nuevo pendiente de aceptar. El set se
+                    // reemplaza (no se acumula) para que una reasignación del
+                    // mismo cliente también se avise.
+                    const nuevos = data.pendientes.filter(t => !pendientesConocidos.has(t));
+                    pendientesConocidos = new Set(data.pendientes);
+
+                    if (nuevos.length) {
+                        showChatToast(
+                            'Nuevo cliente asignado: ' + nuevos.map(t => '+' + t).join(', ') +
+                            ' — ábrelo en la lista para aceptar.',
+                            false
+                        );
+                    }
+                })
+                .catch(() => { /* sin conexión: se reintenta en el siguiente ciclo */ });
+        }
+
+        setInterval(cargarListaClientes, 5000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) cargarListaClientes();
+        });
 
         // ── Countdown ─────────────────────────────────────────────────────────
         const badge = document.getElementById('countdown-badge');
