@@ -53,6 +53,10 @@ States: `pending` → `assigned` → `closed`. Assigning an advisor does **not**
 
 `php artisan assignments:check-waiting` (scheduled every minute in `routes/console.php`) nudges clients still in `pending`: first warning at 5 min, reminders every 10 min via `sendEsperaOpciones()` (seguir esperando / dejar mensaje / cancelar), and auto-closes with `disposition = sin_respuesta` after 20 min — unless the client already left a written note (`nota_dejada`), which protects the lead from being dropped.
 
+`php artisan assignments:diagnostico` explains the classic support report ("asigné un cliente y no le aparece al asesor"): lists advisors with no linked user (nobody can ever see their clients), duplicated advisor names (the dashboard picks by name), advisor-role users with no `Advisor` row, and recent assignments with their state.
+
+The advisor's client list lives in `resources/views/dashboard/partials/client-list.blade.php` and is re-fetched every 5 s from `GET /chat/clientes-lista` (`ChatController::clientList`), so a new assignment shows up without a manual reload. Any change to that list must stay in the partial — the page only renders it once.
+
 ### Roles & access (Spatie Permission)
 
 Four roles, enforced via route-group middleware in `routes/web.php` (`role:sistema|admin`, `role:asesor|supervisor`, combined for shared routes):
@@ -67,7 +71,7 @@ Four roles, enforced via route-group middleware in `routes/web.php` (`role:siste
 - `Assignment` — one row per client↔advisor pairing/session (not one row per client). A client can have many assignments over time; always query "latest" per `cliente_telefono`.
 - `Message` — unified inbound/outbound log (`sender`: cliente/asesor, `tipo`: texto/opcion/imagen/documento/video/audio/ubicacion), with media stored via `WhatsappService::downloadMedia()` on the `public` disk.
 - `Cliente` — separate "registered client" record (name, stage/`etapa`) that advisors fill in manually; distinct from the raw `cliente_telefono`-keyed chat/assignment data.
-- `Advisor` — linked 1:1 to a `User` (`advisor_id` on `users`).
+- `Advisor` — linked 1:1 to a `User` via `advisors.user_id` → `users.id` (`User::advisor()` is a `hasOne`). An `Advisor` row with `user_id = null` is invisible to every panel: assignments land on a record nobody logs into.
 
 ### Outbound WhatsApp (`app/Services/WhatsappService.php`, `ChatbotService`)
 
@@ -75,4 +79,4 @@ Both call the Graph API directly (`https://graph.facebook.com/v25.0/{phone_numbe
 
 ### Frontend
 
-Blade + Alpine.js + Tailwind, no SPA framework. `ChatController::messages` is polled as a JSON endpoint (`/chat/messages`) for near-real-time updates in the chat panel rather than websockets.
+Blade + Alpine.js + Tailwind, no SPA framework. `ChatController::messages` is polled as a JSON endpoint (`/chat/messages`) for near-real-time updates in the chat panel rather than websockets; `ChatController::clientList` does the same for the left-hand client list.

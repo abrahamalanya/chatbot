@@ -44,6 +44,14 @@
                             @endif
                         </td>
                         <td class="px-6 py-4">
+                            @if(!$advisor->user)
+                            {{-- Sin usuario no hay panel: los clientes que se le
+                                 asignen no los verá nadie. --}}
+                            <span class="inline-block mr-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium"
+                                  title="No hay ningún usuario con esta ficha. Si le asignas clientes, nadie podrá verlos en el panel.">
+                                Sin acceso al panel
+                            </span>
+                            @endif
                             <div class="flex items-center justify-end gap-3">
                                 <a href="{{ route('advisors.edit', $advisor) }}" class="text-blue-600 hover:underline text-xs">Editar</a>
                                 <form method="POST" action="{{ route('advisors.destroy', $advisor) }}"

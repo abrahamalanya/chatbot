@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Advisor;
 use App\Models\Assignment;
 use App\Models\Cliente;
 use App\Models\Message;
@@ -25,62 +26,11 @@ class ChatController extends Controller
 
     public function index(Request $request)
     {
-        $advisor = auth()->user()->advisor;
+        $advisor = $this->advisor();
 
-        // Clientes únicos con info de la última asignación
-        $latestIds = Assignment::where('advisor_id', $advisor->id)
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('cliente_telefono')
-            ->pluck('id');
+        $clientes = $advisor ? $this->clientesDelAsesor($advisor) : collect();
 
-        $latestAssignments = Assignment::whereIn('id', $latestIds)->with('whatsappNumber')->get()->keyBy('cliente_telefono');
-
-        $unreadCounts = Message::where('sender', 'cliente')
-            ->whereNull('leido_at')
-            ->whereIn('cliente_telefono', Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono'))
-            ->selectRaw('cliente_telefono, COUNT(*) as unread_count')
-            ->groupBy('cliente_telefono')
-            ->pluck('unread_count', 'cliente_telefono');
-
-        $nombresRegistrados = Cliente::whereIn('cliente_telefono', Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono'))
-            ->whereNotNull('nombre')
-            ->pluck('nombre', 'cliente_telefono');
-
-        // Fecha del último mensaje real (no de la asignación): un cliente ya
-        // atendido que vuelve a escribir semanas después no crea una nueva
-        // asignación hasta que complete el menú del bot, así que ordenar por
-        // la asignación lo dejaba "enterrado" en la lista pese a tener
-        // mensajes nuevos sin leer.
-        $ultimoMensajeAt = Message::whereIn('cliente_telefono', Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono'))
-            ->selectRaw('cliente_telefono, MAX(created_at) as ultimo_mensaje_at')
-            ->groupBy('cliente_telefono')
-            ->pluck('ultimo_mensaje_at', 'cliente_telefono');
-
-        $clientes = Assignment::where('advisor_id', $advisor->id)
-            ->selectRaw('cliente_telefono, COUNT(*) as total_sesiones, MAX(created_at) as last_activity')
-            ->groupBy('cliente_telefono')
-            ->get()
-            ->map(function ($c) use ($latestAssignments, $unreadCounts, $nombresRegistrados, $ultimoMensajeAt) {
-                $c->latest            = $latestAssignments[$c->cliente_telefono] ?? null;
-                $c->unread_count      = $unreadCounts[$c->cliente_telefono] ?? 0;
-                $c->nombre            = $nombresRegistrados[$c->cliente_telefono] ?? null;
-                $c->pendiente_aceptar = $c->latest?->status === Assignment::STATUS_ASSIGNED && !$c->latest?->accepted_at;
-                $c->tiene_no_leidos   = $c->unread_count > 0;
-                $c->last_activity     = max($c->last_activity, $ultimoMensajeAt[$c->cliente_telefono] ?? $c->last_activity);
-                return $c;
-            })
-            // Prioridad: 1) recién asignados sin aceptar (urgente por el
-            // tiempo de espera), 2) cualquier cliente con mensajes sin leer
-            // -incluidos los ya cerrados que vuelven a escribir-, 3) el resto
-            // por actividad más reciente.
-            ->sortBy([
-                ['pendiente_aceptar', 'desc'],
-                ['tiene_no_leidos', 'desc'],
-                ['last_activity', 'desc'],
-            ])
-            ->values();
-
-        $clienteSeleccionado = $request->cliente;
+        $clienteSeleccionado = $this->clientePermitido($request->cliente, $advisor);
         $mensajes            = [];
         $assignment          = null;
         $clienteRegistro     = null;
@@ -125,14 +75,99 @@ class ChatController extends Controller
         ));
     }
 
+    /**
+     * Lista de clientes del asesor renderizada como HTML + resumen, para que el
+     * panel la actualice solo (polling) sin recargar la página.
+     *
+     * Sin esto, un cliente recién asignado sólo aparecía tras un F5 manual: el
+     * panel sólo polleaba los mensajes del cliente abierto, así que el asesor
+     * con la pestaña abierta no veía llegar la asignación.
+     *
+     * El front manda la "firma" de lo que recibió la última vez; si nada cambió
+     * se responde sin renderizar (un asesor con cientos de clientes no puede
+     * pagar el render del partial cada 5 segundos).
+     */
+    public function clientList(Request $request)
+    {
+        $advisor = $this->advisor();
+
+        if (!$advisor) {
+            return response()->json(['html' => null, 'total' => 0, 'pendientes' => []]);
+        }
+
+        $firma = $this->firmaLista($advisor);
+
+        if ($request->input('firma') === $firma) {
+            return response()->json(['html' => null, 'firma' => $firma]);
+        }
+
+        $clientes = $this->clientesDelAsesor($advisor);
+
+        $pendientes = $clientes
+            ->filter(fn ($c) => $c->pendiente_aceptar)
+            ->pluck('cliente_telefono')
+            ->values();
+
+        return response()->json([
+            'html'       => view('dashboard.partials.client-list', [
+                'clientes'            => $clientes,
+                'clienteSeleccionado' => $request->cliente,
+            ])->render(),
+            'total'      => $clientes->count(),
+            'pendientes' => $pendientes,
+            'firma'      => $firma,
+        ]);
+    }
+
+    /**
+     * Huella barata de todo lo que puede cambiar la lista: una asignación nueva
+     * o reasignada, un cliente que la acepta, un mensaje nuevo, o mensajes que
+     * el asesor leyó.
+     *
+     * Se usan agregados de estado y no sólo `updated_at` porque las columnas
+     * datetime no tienen microsegundos: aceptar y asignar dentro del mismo
+     * segundo dejarían la huella intacta y el cliente no aparecería hasta el
+     * siguiente cambio.
+     */
+    private function firmaLista(Advisor $advisor): string
+    {
+        $asignaciones = Assignment::where('advisor_id', $advisor->id)
+            ->selectRaw('COUNT(*) as total, MAX(id) as ultima, MAX(updated_at) as cambia, SUM(accepted_at IS NULL AND status = ?) as sin_aceptar', [Assignment::STATUS_ASSIGNED])
+            ->first();
+
+        $telefonos = Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono');
+
+        $mensajes = $telefonos->isEmpty()
+            ? null
+            : Message::whereIn('cliente_telefono', $telefonos)
+                ->selectRaw('MAX(id) as ultimo, SUM(sender = ? AND leido_at IS NULL) as sin_leer', ['cliente'])
+                ->first();
+
+        return implode('|', [
+            $asignaciones->total,
+            $asignaciones->ultima,
+            $asignaciones->cambia,
+            $asignaciones->sin_aceptar,
+            $mensajes?->ultimo,
+            $mensajes?->sin_leer,
+        ]);
+    }
+
     public function messages(Request $request)
     {
-        Message::where('cliente_telefono', $request->cliente_telefono)
+        $advisor         = $this->advisor();
+        $clienteTelefono = $this->clientePermitido($request->cliente_telefono, $advisor);
+
+        if (!$clienteTelefono) {
+            return response()->json([], 403);
+        }
+
+        Message::where('cliente_telefono', $clienteTelefono)
             ->where('sender', 'cliente')
             ->whereNull('leido_at')
             ->update(['leido_at' => now()]);
 
-        $mensajes = Message::where('cliente_telefono', $request->cliente_telefono)
+        $mensajes = Message::where('cliente_telefono', $clienteTelefono)
             ->orderBy('created_at')
             ->get();
 
@@ -143,7 +178,7 @@ class ChatController extends Controller
     {
         $request->validate(['cliente_telefono' => 'required']);
 
-        $advisor = auth()->user()->advisor;
+        $advisor = $this->advisorRequerido();
 
         $assignment = Assignment::where('cliente_telefono', $request->cliente_telefono)
             ->where('advisor_id', $advisor->id)
@@ -169,7 +204,7 @@ class ChatController extends Controller
             'minutos'          => 'nullable|integer|min:1|max:60',
         ]);
 
-        $advisor = auth()->user()->advisor;
+        $advisor = $this->advisorRequerido();
 
         $assignment = Assignment::where('cliente_telefono', $request->cliente_telefono)
             ->where('advisor_id', $advisor->id)
@@ -193,7 +228,7 @@ class ChatController extends Controller
     {
         $request->validate(['cliente_telefono' => 'required']);
 
-        $advisor = auth()->user()->advisor;
+        $advisor = $this->advisorRequerido();
 
         $previa = Assignment::where('cliente_telefono', $request->cliente_telefono)
             ->where('advisor_id', $advisor->id)
@@ -223,7 +258,7 @@ class ChatController extends Controller
             'mensaje'          => 'required|string|max:1000',
         ]);
 
-        $advisor = auth()->user()->advisor;
+        $advisor = $this->advisorRequerido();
 
         // Solo permitir envío si la conversación está activa
         $assignment = Assignment::where('cliente_telefono', $request->cliente_telefono)
@@ -272,7 +307,7 @@ class ChatController extends Controller
             'disposition'      => 'required|in:completado,no_interesado,sin_respuesta,no_califica,seguimiento',
         ]);
 
-        $advisor = auth()->user()->advisor;
+        $advisor = $this->advisorRequerido();
 
         $assignment = Assignment::where('cliente_telefono', $request->cliente_telefono)
             ->where('advisor_id', $advisor->id)
@@ -292,6 +327,108 @@ class ChatController extends Controller
 
         return redirect()->route('chat.index')
             ->with('success', 'Conversación cerrada correctamente.');
+    }
+
+    /**
+     * Clientes únicos del asesor con la info de su última asignación.
+     *
+     * "Última" = la fila de mayor id entre las de ESE asesor (no la última de
+     * la tabla): al reasignar, la fila que gana es la que toca, y la anterior
+     * queda como historial para ese cliente.
+     */
+    private function clientesDelAsesor(Advisor $advisor)
+    {
+        $latestIds = Assignment::where('advisor_id', $advisor->id)
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('cliente_telefono')
+            ->pluck('id');
+
+        $latestAssignments = Assignment::whereIn('id', $latestIds)->with('whatsappNumber')->get()->keyBy('cliente_telefono');
+
+        $telefonos = Assignment::where('advisor_id', $advisor->id)->pluck('cliente_telefono');
+
+        $unreadCounts = Message::where('sender', 'cliente')
+            ->whereNull('leido_at')
+            ->whereIn('cliente_telefono', $telefonos)
+            ->selectRaw('cliente_telefono, COUNT(*) as unread_count')
+            ->groupBy('cliente_telefono')
+            ->pluck('unread_count', 'cliente_telefono');
+
+        $nombresRegistrados = Cliente::whereIn('cliente_telefono', $telefonos)
+            ->whereNotNull('nombre')
+            ->pluck('nombre', 'cliente_telefono');
+
+        // Fecha del último mensaje real (no de la asignación): un cliente ya
+        // atendido que vuelve a escribir semanas después no crea una nueva
+        // asignación hasta que complete el menú del bot, así que ordenar por
+        // la asignación lo dejaba "enterrado" en la lista pese a tener
+        // mensajes nuevos sin leer.
+        $ultimoMensajeAt = Message::whereIn('cliente_telefono', $telefonos)
+            ->selectRaw('cliente_telefono, MAX(created_at) as ultimo_mensaje_at')
+            ->groupBy('cliente_telefono')
+            ->pluck('ultimo_mensaje_at', 'cliente_telefono');
+
+        return Assignment::where('advisor_id', $advisor->id)
+            ->selectRaw('cliente_telefono, COUNT(*) as total_sesiones, MAX(created_at) as last_activity')
+            ->groupBy('cliente_telefono')
+            ->get()
+            ->map(function ($c) use ($latestAssignments, $unreadCounts, $nombresRegistrados, $ultimoMensajeAt) {
+                $c->latest            = $latestAssignments[$c->cliente_telefono] ?? null;
+                $c->unread_count      = $unreadCounts[$c->cliente_telefono] ?? 0;
+                $c->nombre            = $nombresRegistrados[$c->cliente_telefono] ?? null;
+                $c->pendiente_aceptar = $c->latest?->status === Assignment::STATUS_ASSIGNED && !$c->latest?->accepted_at;
+                $c->tiene_no_leidos   = $c->unread_count > 0;
+                $c->last_activity     = max($c->last_activity, $ultimoMensajeAt[$c->cliente_telefono] ?? $c->last_activity);
+                return $c;
+            })
+            // Prioridad: 1) recién asignados sin aceptar (urgente por el
+            // tiempo de espera), 2) cualquier cliente con mensajes sin leer
+            // -incluidos los ya cerrados que vuelven a escribir-, 3) el resto
+            // por actividad más reciente.
+            ->sortBy([
+                ['pendiente_aceptar', 'desc'],
+                ['tiene_no_leidos', 'desc'],
+                ['last_activity', 'desc'],
+            ])
+            ->values();
+    }
+
+    /**
+     * Ficha de Advisor del usuario autenticado.
+     *
+     * El vínculo es advisors.user_id → users.id (User::advisor es hasOne). Si
+     * un usuario con rol asesor/supervisor no tiene ficha, sus asignaciones
+     * serían invisibles: por eso index/list lo tratan como lista vacía y las
+     * acciones abortan con 403 en vez de reventar con un error 500.
+     */
+    private function advisor(): ?Advisor
+    {
+        return auth()->user()?->advisor;
+    }
+
+    private function advisorRequerido(): Advisor
+    {
+        $advisor = $this->advisor();
+
+        if (!$advisor) {
+            abort(403, 'Tu usuario no está vinculado a una ficha de asesor. Pídele a un administrador que lo asocie desde Advisers → Editar.');
+        }
+
+        return $advisor;
+    }
+
+    /** Sólo se acepta ?cliente= de un cliente que el asesor tiene asignado. */
+    private function clientePermitido(?string $telefono, ?Advisor $advisor): ?string
+    {
+        if (!$telefono || !$advisor) {
+            return null;
+        }
+
+        $esPropio = Assignment::where('advisor_id', $advisor->id)
+            ->where('cliente_telefono', $telefono)
+            ->exists();
+
+        return $esPropio ? $telefono : null;
     }
 
     private function despedirCliente(string $clienteTelefono, int $advisorId, ?int $whatsappNumberId): void
